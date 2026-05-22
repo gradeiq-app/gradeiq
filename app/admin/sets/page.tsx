@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { displayYear } from '@/lib/utils'
 
 interface Parallel { label: string; ebay_kw: string }
 
@@ -185,7 +186,7 @@ function SetsPanel() {
           </div>
           <select value={yearFilter} onChange={e => setYearFilter(e.target.value)}
             className="input-base w-28 text-sm">
-            {YEARS.map(y => <option key={y} value={y}>{y}</option>)}
+            {YEARS.map(y => <option key={y} value={y}>{displayYear(y, sportFilter)}</option>)}
           </select>
           <span className="text-xs text-muted">{sets.length} sets</span>
         </div>
@@ -208,7 +209,7 @@ function SetsPanel() {
             <div>
               <label className={labelCls}>Year *</label>
               <select value={newSet.year} onChange={e => setNewSet(p => ({ ...p, year: e.target.value }))} className={inputCls}>
-                {YEARS.map(y => <option key={y} value={y}>{y}</option>)}
+                {YEARS.map(y => <option key={y} value={y}>{displayYear(y, newSet.sport)}</option>)}
               </select>
             </div>
             <div>
@@ -264,7 +265,7 @@ function SetsPanel() {
             <div key={set.id} className="rounded-xl border border-border bg-surface p-4">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <p className="font-semibold text-white">{set.year} {set.brand} {set.set_name}</p>
+                  <p className="font-semibold text-white">{displayYear(set.year, set.sport)} {set.brand} {set.set_name}</p>
                   <p className="text-xs text-muted mt-0.5">
                     {SPORT_EMOJI[set.sport]} {set.sport} · {set.parallels.length} parallels
                   </p>
@@ -275,7 +276,7 @@ function SetsPanel() {
                     className="rounded-lg border border-border bg-surface-2 px-3 py-1.5 text-xs text-muted hover:text-white transition-colors">
                     Edit parallels
                   </button>
-                  <button onClick={() => handleDelete(set.id, `${set.year} ${set.brand} ${set.set_name}`)}
+                  <button onClick={() => handleDelete(set.id, `${displayYear(set.year, set.sport)} ${set.brand} ${set.set_name}`)}
                     className="rounded-lg border border-red-500/30 px-3 py-1.5 text-xs text-red-400 hover:bg-red-500/10 transition-colors">
                     Delete
                   </button>
@@ -448,7 +449,7 @@ function QueuePanel({ onCountChange }: { onCountChange: (n: number) => void }) {
                 <div className="min-w-0">
                   {/* Set identity */}
                   <p className="font-semibold text-white">
-                    {item.year} {item.brand} {item.set_name}
+                    {displayYear(item.year, item.sport)} {item.brand} {item.set_name}
                   </p>
                   <p className="text-xs text-muted mt-0.5">
                     {SPORT_EMOJI[item.sport] ?? '🃏'} {item.sport}

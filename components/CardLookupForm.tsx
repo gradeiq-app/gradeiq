@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import type { CardFormData } from '@/lib/types'
+import { displayYear } from '@/lib/utils'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -109,7 +110,9 @@ export default function CardLookupForm({ onSubmit, loading }: Props) {
     const parallel = parallels[parallelIdx] ?? { label: 'Base', ebay_kw: '' }
     onSubmit({
       playerName: playerName.trim(),
-      year,
+      // Send the formatted year so eBay search matches real listing titles
+      // e.g. basketball 2024 → "2024-25", baseball 2024 → "2024"
+      year:       displayYear(+year, sport),
       brand,
       set:        setName,
       cardNumber: cardNumber.trim(),
@@ -171,7 +174,7 @@ export default function CardLookupForm({ onSubmit, loading }: Props) {
           >
             <option value="">Select year…</option>
             {years.map(y => (
-              <option key={y} value={y}>{y}</option>
+              <option key={y} value={y}>{displayYear(y, sport)}</option>
             ))}
           </select>
         </div>
