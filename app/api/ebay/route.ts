@@ -30,7 +30,6 @@ async function getAppToken(): Promise<string> {
 
   if (!clientId || !clientSecret) throw new Error('eBay credentials not configured')
 
-  console.error(`[eBay auth] id=${clientId.length}chars ends="${clientId.slice(-6)}" secret=${clientSecret.length}chars ends="${clientSecret.slice(-6)}"`)
   const creds = Buffer.from(`${clientId}:${clientSecret}`).toString('base64')
   const res   = await fetch(TOKEN_URL, {
     method: 'POST',
