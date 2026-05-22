@@ -332,9 +332,9 @@ export default function CardLookupForm({ onSubmit, loading }: Props) {
         <button
           type="button"
           onClick={() => setManualMode(true)}
-          className="text-xs text-muted/50 transition-colors hover:text-muted"
+          className="text-xs text-muted transition-colors hover:text-white underline underline-offset-2"
         >
-          Set not listed? →
+          Card not listed? Enter manually →
         </button>
       </div>
     </form>
