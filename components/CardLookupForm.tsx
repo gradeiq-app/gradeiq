@@ -32,6 +32,7 @@ const SPORTS = [
   { id: 'basketball', label: 'Basketball', emoji: '🏀' },
   { id: 'football',   label: 'Football',   emoji: '🏈' },
   { id: 'hockey',     label: 'Hockey',     emoji: '🏒' },
+  { id: 'wnba',       label: 'WNBA',       emoji: '🏀' },
 ]
 
 // Shared label/input classes
