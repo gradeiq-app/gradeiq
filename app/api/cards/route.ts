@@ -32,8 +32,9 @@ export async function GET() {
     { sets: data ?? [] },
     {
       headers: {
-        // CDN-level cache for 1 hour, stale-while-revalidate for 24 h
-        'Cache-Control': 'public, s-maxage=3600, stale-while-revalidate=86400',
+        // Fresh within 5 min, serve stale for up to 1 h while revalidating
+        // Short s-maxage ensures DB changes (new sets) surface within minutes
+        'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=3600',
       },
     },
   )
