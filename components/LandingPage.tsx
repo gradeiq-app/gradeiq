@@ -15,6 +15,12 @@ interface Props {
   initialShowAuth: boolean
 }
 
+interface SiteConfig {
+  announcement_enabled: string
+  announcement_text: string
+  announcement_type: string
+}
+
 export default function LandingPage({ initialShowAuth }: Props) {
   const [showAuth, setShowAuth] = useState(initialShowAuth)
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('login')
@@ -23,6 +29,8 @@ export default function LandingPage({ initialShowAuth }: Props) {
   const [lookupResult, setLookupResult] = useState<AnalysisResult | null>(null)
   const [lookupError, setLookupError] = useState('')
   const [isMock, setIsMock] = useState(false)
+  const [siteConfig, setSiteConfig] = useState<SiteConfig | null>(null)
+  const [bannerDismissed, setBannerDismissed] = useState(false)
   const resultsRef = useRef<HTMLDivElement>(null)
   const demoRef = useRef<HTMLDivElement>(null)
   const router = useRouter()
@@ -35,6 +43,13 @@ export default function LandingPage({ initialShowAuth }: Props) {
       setUser(session?.user ?? null)
     })
     return () => subscription.unsubscribe()
+  }, [])
+
+  useEffect(() => {
+    fetch('/api/admin/config')
+      .then(r => r.json())
+      .then(setSiteConfig)
+      .catch(() => {/* non-critical */})
   }, [])
 
   async function handleLookup(form: CardFormData) {
@@ -74,8 +89,22 @@ export default function LandingPage({ initialShowAuth }: Props) {
   function openLogin() { setAuthMode('login'); setShowAuth(true) }
   function openSignup() { setAuthMode('signup'); setShowAuth(true) }
 
+  const showBanner = !bannerDismissed && siteConfig?.announcement_enabled === 'true' && !!siteConfig.announcement_text
+  const bannerStyle =
+    siteConfig?.announcement_type === 'success' ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400' :
+    siteConfig?.announcement_type === 'warning'  ? 'border-amber-500/30 bg-amber-500/10 text-amber-400' :
+    'border-blue-500/30 bg-blue-500/10 text-blue-400'
+
   return (
     <div className="min-h-screen bg-background font-body text-white">
+      {/* ─── Announcement banner ─── */}
+      {showBanner && (
+        <div className={`border-b px-5 py-2.5 text-center text-sm ${bannerStyle}`}>
+          {siteConfig!.announcement_text}
+          <button onClick={() => setBannerDismissed(true)} className="ml-4 opacity-50 hover:opacity-100">✕</button>
+        </div>
+      )}
+
       {/* ─── Nav ─── */}
       <header className="fixed inset-x-0 top-0 z-40 border-b border-border/50 bg-background/80 backdrop-blur-md">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-4">

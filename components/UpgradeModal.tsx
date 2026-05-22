@@ -17,6 +17,15 @@ export default function UpgradeModal({ isOpen, onClose, lookupCount, resetDate, 
   const [promoCode, setPromoCode] = useState('')
   const [promoStatus, setPromoStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle')
   const [promoMessage, setPromoMessage] = useState('')
+  const [dynamicPrices, setDynamicPrices] = useState<{ pro?: string; dealer?: string }>({})
+
+  // Load dynamic prices from site_config
+  useState(() => {
+    fetch('/api/admin/config')
+      .then(r => r.json())
+      .then((d: Record<string, string>) => setDynamicPrices({ pro: d.pro_display_price, dealer: d.dealer_display_price }))
+      .catch(() => {})
+  })
 
   const resetFormatted = new Date(resetDate).toLocaleDateString('en-US', {
     month: 'long',
@@ -172,7 +181,11 @@ export default function UpgradeModal({ isOpen, onClose, lookupCount, resetDate, 
                   )}
                 </div>
                 <div className="mt-1">
-                  <span className="font-heading text-2xl text-white">${plan.price}</span>
+                  <span className="font-heading text-2xl text-white">
+                    ${planId === 'pro'
+                      ? (parseFloat(dynamicPrices.pro ?? '') || plan.price)
+                      : (parseFloat(dynamicPrices.dealer ?? '') || plan.price)}
+                  </span>
                   <span className="text-xs text-muted">/mo</span>
                 </div>
                 <p className="mt-2 text-xs text-muted">{plan.tagline}</p>

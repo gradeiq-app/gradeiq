@@ -18,5 +18,17 @@ export default async function Page() {
     redirect('/?auth=required')
   }
 
+  // Check for deactivated account
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('deactivated_at')
+    .eq('id', user.id)
+    .single()
+
+  if (profile?.deactivated_at) {
+    await supabase.auth.signOut()
+    redirect('/?deactivated=true')
+  }
+
   return <AnalyzePage user={user} />
 }

@@ -14,10 +14,20 @@ const FREE_FEATURES = [
   { label: 'Bulk CSV upload', included: false, soon: true },
 ]
 
+interface SiteConfig {
+  announcement_enabled?: string
+  announcement_text?: string
+  announcement_type?: string
+  pro_display_price?: string
+  dealer_display_price?: string
+}
+
 export default function PricingPage() {
   const [user, setUser] = useState<User | null>(null)
   const [userPlan, setUserPlan] = useState<PlanName>('free')
   const [loading, setLoading] = useState<string | null>(null)
+  const [siteConfig, setSiteConfig] = useState<SiteConfig>({})
+  const [bannerDismissed, setBannerDismissed] = useState(false)
   const router = useRouter()
 
   useEffect(() => {
@@ -35,7 +45,13 @@ export default function PricingPage() {
         if (data?.plan) setUserPlan(data.plan as PlanName)
       }
     })
+
+    fetch('/api/admin/config').then(r => r.json()).then(setSiteConfig).catch(() => {})
   }, [])
+
+  // Dynamic display prices (fall back to PLANS defaults if not set)
+  const proPrice = parseFloat(siteConfig.pro_display_price ?? '') || PLANS.pro.price
+  const dealerPrice = parseFloat(siteConfig.dealer_display_price ?? '') || PLANS.dealer.price
 
   async function handleCheckout(planId: 'pro' | 'dealer') {
     if (!user) {
@@ -66,8 +82,22 @@ export default function PricingPage() {
     }
   }
 
+  const showBanner = !bannerDismissed && siteConfig.announcement_enabled === 'true' && !!siteConfig.announcement_text
+  const bannerStyle =
+    siteConfig.announcement_type === 'success' ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400' :
+    siteConfig.announcement_type === 'warning'  ? 'border-amber-500/30 bg-amber-500/10 text-amber-400' :
+    'border-blue-500/30 bg-blue-500/10 text-blue-400'
+
   return (
     <div className="min-h-screen bg-background font-body text-white">
+      {/* ─── Announcement banner ─── */}
+      {showBanner && (
+        <div className={`border-b px-5 py-2.5 text-center text-sm ${bannerStyle}`}>
+          {siteConfig.announcement_text}
+          <button onClick={() => setBannerDismissed(true)} className="ml-4 opacity-50 hover:opacity-100">✕</button>
+        </div>
+      )}
+
       {/* Nav */}
       <header className="border-b border-border bg-background/80 backdrop-blur-md">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-4">
@@ -113,7 +143,7 @@ export default function PricingPage() {
           {/* Pro */}
           <PlanCard
             name={PLANS.pro.name}
-            price={PLANS.pro.price}
+            price={proPrice}
             tagline={PLANS.pro.tagline}
             features={PLANS.pro.features}
             highlighted
@@ -129,7 +159,7 @@ export default function PricingPage() {
           {/* Dealer */}
           <PlanCard
             name={PLANS.dealer.name}
-            price={PLANS.dealer.price}
+            price={dealerPrice}
             tagline={PLANS.dealer.tagline}
             features={PLANS.dealer.features}
             isCurrent={userPlan === 'dealer'}

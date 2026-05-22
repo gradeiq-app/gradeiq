@@ -26,7 +26,9 @@ export async function proxy(request: NextRequest) {
   // Refresh session — keeps the user session alive on navigation
   const { data: { user } } = await supabase.auth.getUser()
 
-  if (!user && request.nextUrl.pathname.startsWith('/analyze')) {
+  const { pathname } = request.nextUrl
+
+  if (!user && (pathname.startsWith('/analyze') || pathname.startsWith('/admin'))) {
     const redirectUrl = request.nextUrl.clone()
     redirectUrl.pathname = '/'
     redirectUrl.searchParams.set('auth', 'required')
@@ -37,5 +39,5 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/analyze/:path*'],
+  matcher: ['/analyze/:path*', '/admin/:path*'],
 }
