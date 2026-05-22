@@ -27,12 +27,16 @@ interface Props {
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const SPORTS = [
+// emoji: standard emoji shown as the icon
+// badge: short text shown as a styled badge instead of an emoji (for sports with no unique emoji)
+type Sport = { id: string; label: string } & ({ emoji: string; badge?: never } | { badge: string; emoji?: never })
+
+const SPORTS: Sport[] = [
   { id: 'baseball',   label: 'Baseball',   emoji: '⚾' },
   { id: 'basketball', label: 'Basketball', emoji: '🏀' },
   { id: 'football',   label: 'Football',   emoji: '🏈' },
   { id: 'hockey',     label: 'Hockey',     emoji: '🏒' },
-  { id: 'wnba',       label: 'WNBA',       emoji: '🏀' },
+  { id: 'wnba',       label: 'WNBA',       badge: 'W'  },
 ]
 
 // Shared label/input classes
@@ -155,7 +159,10 @@ export default function CardLookupForm({ onSubmit, loading }: Props) {
                   : 'border-border bg-surface text-muted hover:border-gold/40 hover:text-white'
               }`}
             >
-              <span>{s.emoji}</span>
+              {s.emoji
+                ? <span>{s.emoji}</span>
+                : <span className="inline-flex h-5 w-5 items-center justify-center rounded text-[10px] font-bold leading-none bg-orange-500/20 text-orange-400">{s.badge}</span>
+              }
               <span className="hidden sm:inline">{s.label}</span>
             </button>
           ))}
