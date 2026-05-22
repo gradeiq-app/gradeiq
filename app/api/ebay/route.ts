@@ -42,9 +42,22 @@ async function fetchSoldPrices(keywords: string, appId: string): Promise<number[
     next: { revalidate: 3600 }, // cache eBay results for 1 hour
   })
 
-  if (!res.ok) throw new Error(`eBay API error: ${res.status}`)
-
   const data = await res.json()
+
+  if (!res.ok) {
+    console.error('[eBay] HTTP error', res.status, JSON.stringify(data))
+    throw new Error(`eBay API HTTP error: ${res.status}`)
+  }
+
+  // eBay Finding API returns HTTP 200 even for auth/key errors — check ack
+  const ack = data?.findCompletedItemsResponse?.[0]?.ack?.[0]
+  if (ack === 'Failure') {
+    const msg = data?.findCompletedItemsResponse?.[0]?.errorMessage?.[0]?.error?.[0]?.message?.[0] ?? 'Unknown eBay error'
+    const errorId = data?.findCompletedItemsResponse?.[0]?.errorMessage?.[0]?.error?.[0]?.errorId?.[0] ?? ''
+    console.error('[eBay] API failure', errorId, msg)
+    throw new Error(`eBay error ${errorId}: ${msg}`)
+  }
+
   const items: unknown[] =
     data?.findCompletedItemsResponse?.[0]?.searchResult?.[0]?.item ?? []
 
@@ -109,7 +122,8 @@ export async function GET(request: NextRequest) {
       psa10: { avg: cleanAverage(psa10Prices), count: psa10Prices.length },
     })
   } catch (err) {
-    console.error('[eBay API]', err)
-    return NextResponse.json({ error: 'Failed to fetch eBay data' }, { status: 502 })
+    const msg = err instanceof Error ? err.message : 'Failed to fetch eBay data'
+    console.error('[eBay API]', msg)
+    return NextResponse.json({ error: msg }, { status: 502 })
   }
 }
