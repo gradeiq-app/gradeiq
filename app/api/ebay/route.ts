@@ -3,6 +3,8 @@ import { getServiceClient } from '@/lib/supabase-admin'
 
 const EBAY_BASE_URL = 'https://svcs.ebay.com/services/search/FindingService/v1'
 const CACHE_TTL_MS  = 24 * 60 * 60 * 1000   // 24 hours
+const MIN_USEFUL    = 3                       // fall to next tier if fewer comps found
+const CALL_DELAY_MS = 200                     // ms between eBay API calls
 
 // ─── IQR-based outlier removal ────────────────────────────────────────────────
 function cleanAverage(prices: number[]): number {
@@ -17,6 +19,38 @@ function cleanAverage(prices: number[]): number {
   const filtered = sorted.filter(p => p >= q1 - 1.5 * iqr && p <= q3 + 1.5 * iqr)
   const arr = filtered.length > 0 ? filtered : sorted
   return arr.reduce((s, p) => s + p, 0) / arr.length
+}
+
+// ─── Tiered query builder ─────────────────────────────────────────────────────
+// Returns progressively looser queries, deduped. We try them in order until
+// we find one with MIN_USEFUL results so rare/vintage cards still get comps.
+function buildQueryTiers(parts: {
+  year: string; brand: string; set: string
+  cardNumber: string; parallel: string; playerName: string
+}): string[] {
+  const { year, brand, set, cardNumber, parallel, playerName } = parts
+
+  const candidates = [
+    // Tier 1 — everything (most precise)
+    [year, brand, set, cardNumber, parallel, playerName],
+    // Tier 2 — drop card number (helps when listings omit it)
+    [year, brand, set, parallel, playerName],
+    // Tier 3 — drop set name too (works for niche/vintage brands)
+    [year, brand, parallel, playerName],
+    // Tier 4 — minimal: player + year + parallel only
+    [playerName, year, parallel],
+    // Tier 5 — absolute fallback: player + year
+    [playerName, year],
+  ]
+
+  // Flatten, enforce eBay's ~350-char keyword limit, and deduplicate
+  const seen = new Set<string>()
+  const tiers: string[] = []
+  for (const parts of candidates) {
+    const q = parts.filter(Boolean).join(' ').trim().slice(0, 350)
+    if (q && !seen.has(q)) { seen.add(q); tiers.push(q) }
+  }
+  return tiers
 }
 
 // ─── Single eBay fetch ────────────────────────────────────────────────────────
@@ -39,9 +73,7 @@ async function fetchSoldPrices(keywords: string, appId: string): Promise<number[
     sortOrder:                      'EndTimeSoonest',
   })
 
-  const res  = await fetch(`${EBAY_BASE_URL}?${params}`, {
-    next: { revalidate: 3600 },
-  })
+  const res  = await fetch(`${EBAY_BASE_URL}?${params}`, { cache: 'no-store' })
   const data = await res.json()
 
   if (!res.ok) {
@@ -49,7 +81,6 @@ async function fetchSoldPrices(keywords: string, appId: string): Promise<number[
     throw new Error(`eBay API HTTP error: ${res.status}`)
   }
 
-  // eBay Finding API returns HTTP 200 even on auth/key errors — check ack
   const ack = data?.findCompletedItemsResponse?.[0]?.ack?.[0]
   if (ack === 'Failure') {
     const msg     = data?.findCompletedItemsResponse?.[0]?.errorMessage?.[0]?.error?.[0]?.message?.[0]  ?? 'Unknown eBay error'
@@ -68,6 +99,30 @@ async function fetchSoldPrices(keywords: string, appId: string): Promise<number[
       return parseFloat(raw?.[0]?.__value__ ?? '0')
     })
     .filter(p => p > 0)
+}
+
+// ─── Fetch with tiered fallback ───────────────────────────────────────────────
+// Tries each query tier in order, stopping as soon as MIN_USEFUL results are
+// found. The last tier is always tried even if it returns 0 (best effort).
+const delay = (ms: number) => new Promise(r => setTimeout(r, ms))
+
+async function fetchWithFallback(
+  gradeSuffix: string,
+  tiers: string[],
+  appId: string,
+): Promise<{ prices: number[]; tierUsed: number }> {
+  for (let i = 0; i < tiers.length; i++) {
+    const query  = `${tiers[i]} ${gradeSuffix}`.trim()
+    const prices = await fetchSoldPrices(query, appId)
+
+    if (prices.length >= MIN_USEFUL || i === tiers.length - 1) {
+      if (i > 0) console.log(`[eBay] "${gradeSuffix}" fell back to tier ${i + 1}: "${query}" (${prices.length} results)`)
+      return { prices, tierUsed: i }
+    }
+
+    await delay(CALL_DELAY_MS)
+  }
+  return { prices: [], tierUsed: tiers.length - 1 }
 }
 
 // ─── Mock data (dev / no key) ─────────────────────────────────────────────────
@@ -143,7 +198,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'eBay API key not configured' }, { status: 500 })
   }
 
-  // ── Cache check ────────────────────────────────────────────────────────────
+  // ── Cache check ──────────────────────────────────────────────────────────
   const cacheKey = makeCacheKey(year, brand, set, cardNumber, parallel, playerName)
   try {
     const cached = await readCache(cacheKey)
@@ -157,21 +212,19 @@ export async function GET(request: NextRequest) {
       })
     }
   } catch (err) {
-    // Cache miss or DB error — fall through to eBay
     console.warn('[eBay cache] read failed', err)
   }
 
-  // ── eBay fetch ─────────────────────────────────────────────────────────────
-  // Include the parallel keyword in the base query so searches are variant-specific
-  const base  = [year, brand, set, cardNumber, parallel, playerName].filter(Boolean).join(' ')
-  const delay = (ms: number) => new Promise(r => setTimeout(r, ms))
+  // ── Build query tiers once, reuse for all four grade searches ────────────
+  const queryTiers = buildQueryTiers({ year, brand, set, cardNumber, parallel, playerName })
+  console.log(`[eBay] tiers built (${queryTiers.length}): ${queryTiers.map((t, i) => `[${i+1}] "${t}"`).join(' | ')}`)
 
+  // ── eBay fetches with per-grade fallback ─────────────────────────────────
   try {
-    // Sequential calls with stagger to avoid eBay's burst rate limiter
-    const rawPrices   = await fetchSoldPrices(`${base} raw ungraded`, appId); await delay(250)
-    const psa8Prices  = await fetchSoldPrices(`${base} PSA 8`,        appId); await delay(250)
-    const psa9Prices  = await fetchSoldPrices(`${base} PSA 9`,        appId); await delay(250)
-    const psa10Prices = await fetchSoldPrices(`${base} PSA 10`,       appId)
+    const { prices: rawPrices  } = await fetchWithFallback('raw ungraded', queryTiers, appId); await delay(CALL_DELAY_MS)
+    const { prices: psa8Prices } = await fetchWithFallback('PSA 8',        queryTiers, appId); await delay(CALL_DELAY_MS)
+    const { prices: psa9Prices } = await fetchWithFallback('PSA 9',        queryTiers, appId); await delay(CALL_DELAY_MS)
+    const { prices: psa10Prices} = await fetchWithFallback('PSA 10',       queryTiers, appId)
 
     const result = {
       raw:   { avg: cleanAverage(rawPrices),   count: rawPrices.length   },
@@ -180,7 +233,6 @@ export async function GET(request: NextRequest) {
       psa10: { avg: cleanAverage(psa10Prices), count: psa10Prices.length },
     }
 
-    // ── Cache write (non-blocking) ─────────────────────────────────────────
     writeCache(cacheKey, {
       raw_avg:    result.raw.avg,   raw_count:   result.raw.count,
       psa8_avg:   result.psa8.avg,  psa8_count:  result.psa8.count,
