@@ -48,3 +48,13 @@ export interface AnalysisResult {
   rawCount: number
   analyzedAt: string
 }
+
+export interface Profile {
+  id: string
+  plan: 'free' | 'pro' | 'dealer'
+  lookup_count: number
+  lookup_reset_date: string
+  stripe_customer_id: string | null
+  stripe_subscription_id: string | null
+  updated_at: string
+}

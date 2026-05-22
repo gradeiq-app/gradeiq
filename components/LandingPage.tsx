@@ -82,6 +82,9 @@ export default function LandingPage({ initialShowAuth }: Props) {
           <a href="/" className="font-heading text-xl text-gold-gradient">GradeIQ</a>
 
           <nav className="flex items-center gap-3">
+            <a href="/pricing" className="hidden text-sm text-muted hover:text-white transition-colors sm:block">
+              Pricing
+            </a>
             {user ? (
               <>
                 <span className="hidden text-sm text-muted sm:block">{user.email}</span>
