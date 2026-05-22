@@ -16,7 +16,7 @@ export const PLANS = {
   pro: {
     id: 'pro' as const,
     name: 'Pro',
-    price: 9,
+    price: 4.99,
     priceId: process.env.STRIPE_PRO_PRICE_ID ?? '',
     tagline: 'For serious collectors',
     features: [
@@ -29,7 +29,7 @@ export const PLANS = {
   dealer: {
     id: 'dealer' as const,
     name: 'Dealer',
-    price: 29,
+    price: 19.99,
     priceId: process.env.STRIPE_DEALER_PRICE_ID ?? '',
     tagline: 'For dealers & flippers',
     features: [

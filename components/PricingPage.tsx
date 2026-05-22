@@ -151,7 +151,7 @@ export default function PricingPage() {
             },
             {
               q: 'When does my free tier reset?',
-              a: 'Your 5 free lookups reset on the 1st of each calendar month.',
+              a: 'Your 5 free lookups reset on the 1st of each calendar month. Promo codes can add bonus lookups on top of your free allowance.',
             },
             {
               q: 'Can I cancel anytime?',

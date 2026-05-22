@@ -56,5 +56,17 @@ export interface Profile {
   lookup_reset_date: string
   stripe_customer_id: string | null
   stripe_subscription_id: string | null
+  // Promo / demo codes
+  bonus_lookups: number
+  promo_plan: 'pro' | 'dealer' | null
+  promo_plan_expires_at: string | null
   updated_at: string
+}
+
+export interface PromoRedeemResult {
+  success?: boolean
+  error?: 'invalid_code' | 'expired_code' | 'code_exhausted' | 'already_redeemed' | 'not_authenticated'
+  granted?: 'pro' | 'dealer'
+  days?: number | null
+  extra_lookups?: number
 }

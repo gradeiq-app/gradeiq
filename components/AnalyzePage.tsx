@@ -109,8 +109,8 @@ export default function AnalyzePage({ user }: Props) {
   }
 
   async function handleAnalyze(form: CardFormData) {
-    // Quota check — free users only
-    if (profile && profile.plan === 'free' && profile.lookup_count >= FREE_TIER_LIMIT) {
+    // Quota check — free users only (promo plan bypasses this)
+    if (profile && isFree && profile.lookup_count >= effectiveLimit) {
       setShowUpgrade(true)
       return
     }
@@ -185,8 +185,15 @@ export default function AnalyzePage({ user }: Props) {
     }, 50)
   }
 
-  const isFree = !profile || profile.plan === 'free'
-  const lookupsLeft = isFree ? Math.max(0, FREE_TIER_LIMIT - (profile?.lookup_count ?? 0)) : null
+  // Promo plan is active if it exists and either has no expiry or hasn't expired yet
+  const promoActive = !!(
+    profile?.promo_plan &&
+    (!profile.promo_plan_expires_at || new Date(profile.promo_plan_expires_at) > new Date())
+  )
+  const effectivePlan = promoActive ? profile!.promo_plan! : (profile?.plan ?? 'free')
+  const isFree = effectivePlan === 'free'
+  const effectiveLimit = FREE_TIER_LIMIT + (profile?.bonus_lookups ?? 0)
+  const lookupsLeft = isFree ? Math.max(0, effectiveLimit - (profile?.lookup_count ?? 0)) : null
 
   return (
     <div className="min-h-screen bg-background font-body text-white">
@@ -231,13 +238,28 @@ export default function AnalyzePage({ user }: Props) {
                 {/* Quota badge */}
                 {!profileLoading && isFree && (
                   <div className="shrink-0 rounded-lg border border-border bg-surface px-3 py-2 text-right">
-                    <p className="text-xs text-muted">Free tier</p>
+                    <p className="text-xs text-muted">
+                      {(profile?.bonus_lookups ?? 0) > 0 ? 'Free + bonus' : 'Free tier'}
+                    </p>
                     <p className={`text-sm font-semibold ${lookupsLeft === 0 ? 'text-red-400' : 'text-white'}`}>
-                      {lookupsLeft} / {FREE_TIER_LIMIT} left
+                      {lookupsLeft} / {effectiveLimit} left
                     </p>
                   </div>
                 )}
-                {!profileLoading && !isFree && (
+                {!profileLoading && promoActive && (
+                  <div className="shrink-0 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-right">
+                    <p className="text-xs text-emerald-400">Demo Access</p>
+                    <p className="text-sm font-semibold text-white">
+                      {effectivePlan === 'pro' ? 'Pro' : 'Dealer'}
+                      {profile?.promo_plan_expires_at ? (
+                        <span className="ml-1 text-xs font-normal text-emerald-400/70">
+                          · expires {new Date(profile.promo_plan_expires_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                        </span>
+                      ) : null}
+                    </p>
+                  </div>
+                )}
+                {!profileLoading && !isFree && !promoActive && (
                   <div className="shrink-0 rounded-lg border border-gold/30 bg-gold-muted px-3 py-2 text-right">
                     <p className="text-xs text-gold">
                       {profile?.plan === 'pro' ? 'Pro' : 'Dealer'} Plan
@@ -307,21 +329,22 @@ export default function AnalyzePage({ user }: Props) {
               <div className="rounded-xl border border-gold/20 bg-gold-muted p-4">
                 <p className="text-sm font-semibold text-white">Upgrade to Pro</p>
                 <p className="mt-1 text-xs text-muted">
-                  Unlimited lookups for $9/month.
+                  Unlimited lookups from $4.99/month.
                 </p>
                 <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-border">
                   <div
                     className="h-full rounded-full bg-gold"
-                    style={{ width: `${Math.min(((profile?.lookup_count ?? 0) / FREE_TIER_LIMIT) * 100, 100)}%` }}
+                    style={{ width: `${Math.min(((profile?.lookup_count ?? 0) / effectiveLimit) * 100, 100)}%` }}
                   />
                 </div>
                 <p className="mt-1.5 text-xs text-muted">
-                  {profile?.lookup_count ?? 0}/{FREE_TIER_LIMIT} lookups used · resets{' '}
+                  {profile?.lookup_count ?? 0}/{effectiveLimit} lookups used · resets{' '}
                   {profile ? new Date(profile.lookup_reset_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—'}
                 </p>
                 <a href="/pricing" className="btn-gold mt-3 w-full text-center text-xs py-2 block">
                   See Plans →
                 </a>
+                <PromoCodeInput onRedeemed={loadProfile} />
               </div>
             )}
 
@@ -358,7 +381,105 @@ export default function AnalyzePage({ user }: Props) {
         onClose={() => setShowUpgrade(false)}
         lookupCount={profile?.lookup_count ?? FREE_TIER_LIMIT}
         resetDate={profile?.lookup_reset_date ?? new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1).toISOString()}
+        onRedeemed={loadProfile}
       />
+    </div>
+  )
+}
+
+// ─── Promo code redemption widget ────────────────────────────────────────────
+
+interface PromoCodeInputProps {
+  onRedeemed: () => void
+}
+
+function PromoCodeInput({ onRedeemed }: PromoCodeInputProps) {
+  const [expanded, setExpanded] = useState(false)
+  const [code, setCode] = useState('')
+  const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle')
+  const [message, setMessage] = useState('')
+
+  async function handleRedeem() {
+    if (!code.trim()) return
+    setStatus('loading')
+    setMessage('')
+
+    try {
+      const res = await fetch('/api/redeem', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code }),
+      })
+      const data = await res.json()
+
+      if (data.success) {
+        setStatus('success')
+        if (data.granted) {
+          const planLabel = data.granted === 'pro' ? 'Pro' : 'Dealer'
+          setMessage(
+            data.days
+              ? `${planLabel} access activated for ${data.days} days!`
+              : `${planLabel} access activated!`
+          )
+        } else if (data.extra_lookups) {
+          setMessage(`${data.extra_lookups} bonus lookups added!`)
+        } else {
+          setMessage('Code redeemed!')
+        }
+        setCode('')
+        onRedeemed()
+      } else {
+        setStatus('error')
+        const msgs: Record<string, string> = {
+          invalid_code: 'Invalid or inactive code.',
+          expired_code: 'This code has expired.',
+          code_exhausted: 'This code has reached its usage limit.',
+          already_redeemed: 'You\'ve already used this code.',
+        }
+        setMessage(msgs[data.error] ?? 'Something went wrong.')
+      }
+    } catch {
+      setStatus('error')
+      setMessage('Could not apply code. Try again.')
+    }
+  }
+
+  if (!expanded) {
+    return (
+      <button
+        onClick={() => setExpanded(true)}
+        className="mt-3 w-full text-xs text-muted/70 hover:text-gold transition-colors text-center"
+      >
+        Have a promo code? →
+      </button>
+    )
+  }
+
+  return (
+    <div className="mt-3">
+      <div className="flex gap-1.5">
+        <input
+          value={code}
+          onChange={e => { setCode(e.target.value.toUpperCase()); setStatus('idle'); setMessage('') }}
+          onKeyDown={e => e.key === 'Enter' && handleRedeem()}
+          placeholder="ENTER CODE"
+          className="min-w-0 flex-1 rounded-lg border border-border bg-background px-2.5 py-1.5 text-xs uppercase tracking-widest text-white placeholder-muted/40 outline-none focus:border-gold/50"
+          disabled={status === 'loading'}
+          autoFocus
+        />
+        <button
+          onClick={handleRedeem}
+          disabled={!code.trim() || status === 'loading'}
+          className="shrink-0 rounded-lg bg-gold/20 px-3 py-1.5 text-xs font-semibold text-gold hover:bg-gold/30 disabled:opacity-40 transition-colors"
+        >
+          {status === 'loading' ? '…' : 'Apply'}
+        </button>
+      </div>
+      {message && (
+        <p className={`mt-1.5 text-xs ${status === 'success' ? 'text-emerald-400' : 'text-red-400'}`}>
+          {message}
+        </p>
+      )}
     </div>
   )
 }

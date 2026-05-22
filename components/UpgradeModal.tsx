@@ -8,11 +8,15 @@ interface Props {
   onClose: () => void
   lookupCount: number
   resetDate: string
+  onRedeemed?: () => void
 }
 
-export default function UpgradeModal({ isOpen, onClose, lookupCount, resetDate }: Props) {
+export default function UpgradeModal({ isOpen, onClose, lookupCount, resetDate, onRedeemed }: Props) {
   const [loading, setLoading] = useState<string | null>(null)
   const [error, setError] = useState('')
+  const [promoCode, setPromoCode] = useState('')
+  const [promoStatus, setPromoStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle')
+  const [promoMessage, setPromoMessage] = useState('')
 
   const resetFormatted = new Date(resetDate).toLocaleDateString('en-US', {
     month: 'long',
@@ -44,6 +48,52 @@ export default function UpgradeModal({ isOpen, onClose, lookupCount, resetDate }
       setError('Something went wrong. Please try again.')
     } finally {
       setLoading(null)
+    }
+  }
+
+  async function handlePromoRedeem() {
+    if (!promoCode.trim()) return
+    setPromoStatus('loading')
+    setPromoMessage('')
+
+    try {
+      const res = await fetch('/api/redeem', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: promoCode }),
+      })
+      const data = await res.json()
+
+      if (data.success) {
+        setPromoStatus('success')
+        if (data.granted) {
+          const planLabel = data.granted === 'pro' ? 'Pro' : 'Dealer'
+          setPromoMessage(
+            data.days
+              ? `${planLabel} access activated for ${data.days} days! Closing…`
+              : `${planLabel} access activated! Closing…`
+          )
+        } else if (data.extra_lookups) {
+          setPromoMessage(`${data.extra_lookups} bonus lookups added! Closing…`)
+        } else {
+          setPromoMessage('Code redeemed!')
+        }
+        setPromoCode('')
+        onRedeemed?.()
+        setTimeout(onClose, 1800)
+      } else {
+        setPromoStatus('error')
+        const msgs: Record<string, string> = {
+          invalid_code: 'Invalid or inactive code.',
+          expired_code: 'This code has expired.',
+          code_exhausted: 'This code has reached its usage limit.',
+          already_redeemed: 'You\'ve already used this code.',
+        }
+        setPromoMessage(msgs[data.error] ?? 'Something went wrong.')
+      }
+    } catch {
+      setPromoStatus('error')
+      setPromoMessage('Could not apply code. Try again.')
     }
   }
 
@@ -151,6 +201,33 @@ export default function UpgradeModal({ isOpen, onClose, lookupCount, resetDate }
             See full comparison →
           </a>
         </p>
+
+        {/* Promo code redemption */}
+        <div className="mt-5 border-t border-border pt-5">
+          <p className="mb-2 text-center text-xs text-muted">Have a promo code?</p>
+          <div className="flex gap-2">
+            <input
+              value={promoCode}
+              onChange={e => { setPromoCode(e.target.value.toUpperCase()); setPromoStatus('idle'); setPromoMessage('') }}
+              onKeyDown={e => e.key === 'Enter' && handlePromoRedeem()}
+              placeholder="ENTER CODE"
+              className="min-w-0 flex-1 rounded-lg border border-border bg-background px-3 py-2 text-sm uppercase tracking-widest text-white placeholder-muted/40 outline-none focus:border-gold/50"
+              disabled={promoStatus === 'loading' || promoStatus === 'success'}
+            />
+            <button
+              onClick={handlePromoRedeem}
+              disabled={!promoCode.trim() || promoStatus === 'loading' || promoStatus === 'success'}
+              className="shrink-0 rounded-lg border border-gold/40 bg-gold-muted px-4 py-2 text-sm font-semibold text-gold hover:bg-gold/20 disabled:opacity-40 transition-colors"
+            >
+              {promoStatus === 'loading' ? '…' : 'Apply'}
+            </button>
+          </div>
+          {promoMessage && (
+            <p className={`mt-2 text-center text-xs ${promoStatus === 'success' ? 'text-emerald-400' : 'text-red-400'}`}>
+              {promoMessage}
+            </p>
+          )}
+        </div>
       </div>
     </div>
   )
