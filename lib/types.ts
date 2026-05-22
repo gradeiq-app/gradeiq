@@ -4,6 +4,8 @@ export interface CardFormData {
   brand: string
   set: string
   cardNumber: string
+  /** eBay keyword suffix for the parallel/variant — empty string = Base */
+  parallel: string
   costBasis: number
 }
 

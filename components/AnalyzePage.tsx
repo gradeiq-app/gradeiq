@@ -126,6 +126,7 @@ export default function AnalyzePage({ user }: Props) {
         brand: form.brand,
         set: form.set,
         cardNumber: form.cardNumber,
+        parallel: form.parallel ?? '',
       })
 
       const res = await fetch(`/api/ebay?${params}`)
@@ -154,7 +155,7 @@ export default function AnalyzePage({ user }: Props) {
     const supabase = createClient()
     if (!supabase) return
 
-    const cardName = [form.year, form.brand, form.set, form.playerName].filter(Boolean).join(' ')
+    const cardName = [form.year, form.brand, form.set, form.playerName, form.parallel].filter(Boolean).join(' ')
 
     // Save lookup to history
     await supabase.from('lookups').insert({
