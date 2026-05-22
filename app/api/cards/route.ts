@@ -33,9 +33,8 @@ export async function GET() {
     { sets: data ?? [] },
     {
       headers: {
-        // Fresh within 5 min, serve stale for up to 1 h while revalidating
-        // Short s-maxage ensures DB changes (new sets) surface within minutes
-        'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=3600',
+        // no-store: always fetch fresh — avoids CDN serving stale row-limited responses
+        'Cache-Control': 'no-store',
       },
     },
   )
