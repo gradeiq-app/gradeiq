@@ -50,9 +50,16 @@ export default function AuthModal({ isOpen, initialMode = 'login', onClose }: Pr
         router.push('/analyze')
         router.refresh()
       } else {
-        const { error } = await supabase.auth.signUp({ email, password })
+        const { data, error } = await supabase.auth.signUp({ email, password })
         if (error) throw error
-        setMessage('Check your email to confirm your account, then sign in.')
+        // If auto-confirm is on, session is immediately available — go straight to app
+        if (data.session) {
+          onClose()
+          router.push('/analyze')
+          router.refresh()
+        } else {
+          setMessage('Check your email to confirm your account, then sign in.')
+        }
       }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Something went wrong')
