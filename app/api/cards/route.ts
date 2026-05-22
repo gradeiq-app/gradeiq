@@ -22,6 +22,7 @@ export async function GET() {
     .from('card_sets')
     .select('id, sport, year, brand, set_name, parallels')
     .order('year', { ascending: false })
+    .limit(10000)   // Supabase default cap is 1000 — raise it for full vintage coverage
 
   if (error) {
     console.error('[cards] Supabase error', error.message)
