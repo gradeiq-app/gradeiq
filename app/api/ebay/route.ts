@@ -107,13 +107,14 @@ export async function GET(request: NextRequest) {
 
   const base = [year, brand, set, cardNumber, playerName].filter(Boolean).join(' ')
 
+  const delay = (ms: number) => new Promise(r => setTimeout(r, ms))
+
   try {
-    const [rawPrices, psa8Prices, psa9Prices, psa10Prices] = await Promise.all([
-      fetchSoldPrices(`${base} raw ungraded`, appId),
-      fetchSoldPrices(`${base} PSA 8`, appId),
-      fetchSoldPrices(`${base} PSA 9`, appId),
-      fetchSoldPrices(`${base} PSA 10`, appId),
-    ])
+    // Sequential calls with a short stagger to avoid eBay's burst rate limiter
+    const rawPrices  = await fetchSoldPrices(`${base} raw ungraded`, appId); await delay(250)
+    const psa8Prices = await fetchSoldPrices(`${base} PSA 8`, appId);        await delay(250)
+    const psa9Prices = await fetchSoldPrices(`${base} PSA 9`, appId);        await delay(250)
+    const psa10Prices = await fetchSoldPrices(`${base} PSA 10`, appId)
 
     return NextResponse.json({
       raw: { avg: cleanAverage(rawPrices), count: rawPrices.length },
