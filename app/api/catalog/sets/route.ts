@@ -47,6 +47,7 @@ export async function GET(request: NextRequest) {
       year,
       name,
       is_active,
+      parallel_templates,
       created_at,
       sport:sports!inner(id, name, slug),
       manufacturer:manufacturers!inner(id, name, slug)
