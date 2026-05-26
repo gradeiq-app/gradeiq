@@ -215,15 +215,17 @@ export async function POST(request: NextRequest) {
   if (!referenceUrl) {
     // Log as "unavailable" — still useful to track
     if (sb) {
-      await sb.from('parallel_verifications').insert({
-        user_id: user.id,
-        set_id:  setId,
-        parallel_label: parallelLabel,
-        sport, year: parseInt(year), brand, set_name: setName,
-        verdict: 'UNAVAILABLE',
-        confidence: 0,
-        reference_source: 'none',
-      }).catch(() => {})
+      try {
+        await sb.from('parallel_verifications').insert({
+          user_id: user.id,
+          set_id:  setId,
+          parallel_label: parallelLabel,
+          sport, year: parseInt(year), brand, set_name: setName,
+          verdict: 'UNAVAILABLE',
+          confidence: 0,
+          reference_source: 'none',
+        })
+      } catch { /* non-fatal */ }
     }
     return NextResponse.json(
       { ok: false, error: 'no_reference', message: 'No reference image found for this parallel yet. Try the reference viewer or proceed without verification.' },
@@ -295,24 +297,26 @@ export async function POST(request: NextRequest) {
   // ── 8. Store result ───────────────────────────────────────────────────────
   let verificationId = ''
   if (sb) {
-    const { data: inserted } = await sb
-      .from('parallel_verifications')
-      .insert({
-        user_id:          user.id,
-        set_id:           setId,
-        parallel_label:   parallelLabel,
-        sport,
-        year:             parseInt(year),
-        brand,
-        set_name:         setName,
-        verdict:          aiResult.verdict,
-        confidence:       aiResult.confidence,
-        ai_response_json: aiResult as unknown as Record<string, unknown>,
-        reference_source: referenceSource,
-      })
-      .select('id')
-      .single()
-    verificationId = inserted?.id ?? ''
+    try {
+      const { data: inserted } = await sb
+        .from('parallel_verifications')
+        .insert({
+          user_id:          user.id,
+          set_id:           setId,
+          parallel_label:   parallelLabel,
+          sport,
+          year:             parseInt(year),
+          brand,
+          set_name:         setName,
+          verdict:          aiResult.verdict,
+          confidence:       aiResult.confidence,
+          ai_response_json: aiResult as unknown as Record<string, unknown>,
+          reference_source: referenceSource,
+        })
+        .select('id')
+        .single()
+      verificationId = inserted?.id ?? ''
+    } catch { /* non-fatal */ }
   }
 
   return NextResponse.json({
