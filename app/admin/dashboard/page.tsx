@@ -2,11 +2,24 @@
 
 import { useEffect, useState } from 'react'
 
+interface VerificationStats {
+  total:       number
+  last30Days:  number
+  verdicts: {
+    confirmed:        number
+    likelyMatch:      number
+    possibleMismatch: number
+    mismatch:         number
+  }
+  topMisidentified: Array<{ name: string; count: number }>
+}
+
 interface Stats {
   totalUsers: number
   planCounts: { free: number; pro: number; dealer: number }
   lookupsThisMonth: number
   topPromos: Array<{ code: string; description: string | null; used_count: number; max_uses: number | null; active: boolean; grants_plan: string | null; extra_lookups: number | null }>
+  verifications?: VerificationStats
 }
 
 export default function DashboardPage() {
@@ -72,6 +85,78 @@ export default function DashboardPage() {
           <p className="mt-1 text-xs text-muted/60">{paidUsers} of {stats.totalUsers} users paid</p>
         </div>
       </div>
+
+      {/* Verification analytics */}
+      {stats.verifications && (
+        <div>
+          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-muted">Parallel Verifier</h2>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-4">
+            {[
+              { label: 'Total Verifications', value: stats.verifications.total,      sub: 'all time' },
+              { label: 'Last 30 Days',         value: stats.verifications.last30Days, sub: 'rolling window' },
+              { label: 'Confirmed',            value: stats.verifications.verdicts.confirmed + stats.verifications.verdicts.likelyMatch,
+                sub: 'CONFIRMED + LIKELY MATCH' },
+              { label: 'Mismatches',           value: stats.verifications.verdicts.possibleMismatch + stats.verifications.verdicts.mismatch,
+                sub: 'flagged as wrong parallel' },
+            ].map(({ label, value, sub }) => (
+              <div key={label} className="rounded-xl border border-border bg-surface p-5">
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted">{label}</p>
+                <p className="mt-2 font-heading text-3xl text-white">{value}</p>
+                <p className="mt-1 text-xs text-muted/60">{sub}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* Verdict distribution */}
+          {stats.verifications.total > 0 && (() => {
+            const t = stats.verifications!.total
+            const v = stats.verifications!.verdicts
+            const bars = [
+              { label: 'Confirmed',         count: v.confirmed,        color: 'bg-emerald-500' },
+              { label: 'Likely Match',      count: v.likelyMatch,      color: 'bg-gold' },
+              { label: 'Poss. Mismatch',    count: v.possibleMismatch, color: 'bg-orange-500' },
+              { label: 'Mismatch',          count: v.mismatch,         color: 'bg-red-500' },
+            ]
+            return (
+              <div className="rounded-xl border border-border bg-surface p-5 mb-4">
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted mb-3">Verdict Distribution</p>
+                <div className="flex gap-1 h-3 rounded-full overflow-hidden">
+                  {bars.map(b => b.count > 0 && (
+                    <div key={b.label} className={b.color} style={{ width: `${(b.count / t) * 100}%` }} title={`${b.label}: ${b.count}`} />
+                  ))}
+                </div>
+                <div className="mt-3 flex flex-wrap gap-4 text-xs text-muted">
+                  {bars.map(b => (
+                    <span key={b.label}>
+                      <span className={`inline-block w-2 h-2 rounded-full mr-1 ${b.color}`} />
+                      {b.label}: {b.count} ({t > 0 ? Math.round((b.count / t) * 100) : 0}%)
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )
+          })()}
+
+          {/* Top misidentified */}
+          {stats.verifications.topMisidentified.length > 0 && (
+            <div className="rounded-xl border border-border bg-surface overflow-hidden">
+              <div className="border-b border-border px-4 py-3">
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted">Most Commonly Misidentified Parallels</p>
+              </div>
+              <table className="w-full text-sm">
+                <tbody>
+                  {stats.verifications.topMisidentified.map((item, i) => (
+                    <tr key={item.name} className={i > 0 ? 'border-t border-border/50' : ''}>
+                      <td className="px-4 py-3 text-white/80">{item.name}</td>
+                      <td className="px-4 py-3 text-right font-semibold text-red-400">{item.count}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Top promo codes */}
       {stats.topPromos.length > 0 && (

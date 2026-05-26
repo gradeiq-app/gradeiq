@@ -65,6 +65,39 @@ export interface Profile {
   updated_at: string
 }
 
+// ─── Parallel Verifier ────────────────────────────────────────────────────────
+
+export interface VisualCheck {
+  feature:   string
+  reference: string
+  observed:  string
+  match:     boolean
+}
+
+export type VerifyVerdict = 'CONFIRMED' | 'LIKELY MATCH' | 'POSSIBLE MISMATCH' | 'MISMATCH'
+
+export interface VerifyAIResult {
+  match:          boolean | 'uncertain'
+  confidence:     number
+  verdict:        VerifyVerdict
+  reasoning:      string
+  visual_checks:  VisualCheck[]
+  warnings:       string[]
+}
+
+export interface VerifyResponse {
+  ok:                true
+  verdict:           VerifyAIResult
+  verification_id:   string
+  reference_source:  'ebay' | 'storage' | 'none'
+}
+
+export interface VerifyErrorResponse {
+  ok:     false
+  error:  'rate_limited' | 'no_reference' | 'image_quality' | 'api_unavailable' | 'unknown'
+  message: string
+}
+
 export interface PromoRedeemResult {
   success?: boolean
   error?: 'invalid_code' | 'expired_code' | 'code_exhausted' | 'already_redeemed' | 'not_authenticated'

@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import type { CardFormData } from '@/lib/types'
 import { displayYear } from '@/lib/utils'
+import ParallelVerifier from './ParallelVerifier'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -62,6 +63,9 @@ export default function CardLookupForm({ onSubmit, loading }: Props) {
   const [cardNumber, setCardNumber] = useState('')
   const [costBasis,  setCostBasis]  = useState<number | ''>('')
 
+  // Verifier — resets when parallel changes
+  const [verifierConfirmed, setVerifierConfirmed] = useState(false)
+
   // ── Fetch card sets once ─────────────────────────────────────────────────
   useEffect(() => {
     fetch('/api/cards')
@@ -103,10 +107,12 @@ export default function CardLookupForm({ onSubmit, loading }: Props) {
   const parallels = useMemo(() => currentSet?.parallels ?? [], [currentSet])
 
   // ── Cascade resets ───────────────────────────────────────────────────────
-  useEffect(() => { setYear(''); setBrand(''); setSetName(''); setParallelIdx(0) }, [sport])
-  useEffect(() => { setBrand(''); setSetName(''); setParallelIdx(0) }, [year])
-  useEffect(() => { setSetName(''); setParallelIdx(0) }, [brand])
-  useEffect(() => { setParallelIdx(0) }, [setName])
+  useEffect(() => { setYear(''); setBrand(''); setSetName(''); setParallelIdx(0); setVerifierConfirmed(false) }, [sport])
+  useEffect(() => { setBrand(''); setSetName(''); setParallelIdx(0); setVerifierConfirmed(false) }, [year])
+  useEffect(() => { setSetName(''); setParallelIdx(0); setVerifierConfirmed(false) }, [brand])
+  useEffect(() => { setParallelIdx(0); setVerifierConfirmed(false) }, [setName])
+  // Reset verifier when parallel changes
+  useEffect(() => { setVerifierConfirmed(false) }, [parallelIdx])
 
   // ── Submit ───────────────────────────────────────────────────────────────
   function handleSubmit(e: React.FormEvent) {
@@ -252,6 +258,34 @@ export default function CardLookupForm({ onSubmit, loading }: Props) {
               </p>
             )
           })()}
+        </div>
+      )}
+
+      {/* ── Step 5b: Parallel Verifier ──────────────────────────────────── */}
+      {currentSet && parallels.length > 0 && !verifierConfirmed && (
+        <ParallelVerifier
+          parallel={parallels[parallelIdx] ?? parallels[0]}
+          setId={currentSet.id}
+          year={+year}
+          brand={brand}
+          setName={setName}
+          sport={sport}
+          onConfirm={() => setVerifierConfirmed(true)}
+          onGoBack={() => { setParallelIdx(0); setVerifierConfirmed(false) }}
+        />
+      )}
+      {verifierConfirmed && (
+        <div className="flex items-center gap-2 rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-4 py-2.5 text-sm">
+          <span className="text-emerald-400">✓</span>
+          <span className="text-emerald-400/90 font-medium">Parallel confirmed:</span>
+          <span className="text-white">{parallels[parallelIdx]?.label ?? 'Base'}</span>
+          <button
+            type="button"
+            onClick={() => setVerifierConfirmed(false)}
+            className="ml-auto text-xs text-muted hover:text-white transition-colors"
+          >
+            Change
+          </button>
         </div>
       )}
 
