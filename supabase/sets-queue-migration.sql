@@ -1,5 +1,5 @@
 -- ============================================================
--- GradeIQ — Sets Discovery Queue
+-- RawIQ — Sets Discovery Queue
 -- Holds candidates found by the daily RSS scraper agent
 -- ============================================================
 

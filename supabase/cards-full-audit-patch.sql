@@ -1,5 +1,5 @@
 -- ============================================================
--- GradeIQ — Full database audit + pre-2018 expansion
+-- RawIQ — Full database audit + pre-2018 expansion
 -- Run date: 2026-05-22
 -- ============================================================
 

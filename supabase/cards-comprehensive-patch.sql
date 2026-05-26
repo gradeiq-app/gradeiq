@@ -1,5 +1,5 @@
 -- ============================================================
--- GradeIQ — Comprehensive Missing Card Sets Patch
+-- RawIQ — Comprehensive Missing Card Sets Patch
 -- Run after: cards-migration.sql + cards-2025-2026-patch.sql
 -- Every INSERT uses ON CONFLICT DO NOTHING — fully idempotent
 -- ============================================================

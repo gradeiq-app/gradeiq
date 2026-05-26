@@ -5,7 +5,7 @@ import AnalyzePage from '@/components/AnalyzePage'
 export const dynamic = 'force-dynamic'
 
 export const metadata = {
-  title: 'Analyze — GradeIQ',
+  title: 'Analyze — RawIQ',
 }
 
 export default async function Page() {

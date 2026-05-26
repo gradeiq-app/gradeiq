@@ -1,4 +1,4 @@
--- GradeIQ — Promo / demo code migration
+-- RawIQ — Promo / demo code migration
 -- Run after profiles-migration.sql
 
 -- ── 1. Extend profiles with promo fields ─────────────────────

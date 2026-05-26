@@ -13,7 +13,7 @@ import { createHash } from 'crypto'
 import { NextRequest, NextResponse } from 'next/server'
 
 const VERIFICATION_TOKEN = process.env.EBAY_VERIFICATION_TOKEN ?? ''
-const ENDPOINT_URL = 'https://gradeiq-beta.vercel.app/api/ebay/notification'
+const ENDPOINT_URL = 'https://rawiq-beta.vercel.app/api/ebay/notification'
 
 /**
  * GET — eBay sends ?challenge_code=xxxx to verify we own the endpoint.
@@ -41,7 +41,7 @@ export async function GET(request: NextRequest) {
 
 /**
  * POST — eBay notifies us when a marketplace user requests account deletion.
- * GradeIQ does not store eBay user accounts (users sign up with email/password,
+ * RawIQ does not store eBay user accounts (users sign up with email/password,
  * not eBay OAuth), so there is no user data to delete. We just acknowledge.
  */
 export async function POST(request: NextRequest) {

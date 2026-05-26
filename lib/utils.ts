@@ -1,5 +1,5 @@
 /**
- * GradeIQ shared utilities
+ * RawIQ shared utilities
  */
 
 /** Sports whose cards are labelled with a two-year season range */

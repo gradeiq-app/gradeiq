@@ -101,7 +101,7 @@ export default function PricingPage() {
       {/* Nav */}
       <header className="border-b border-border bg-background/80 backdrop-blur-md">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-4">
-          <a href="/" className="font-heading text-xl text-gold-gradient">GradeIQ</a>
+          <a href="/" className="font-heading text-xl text-gold-gradient">RawIQ</a>
           <div className="flex items-center gap-3">
             {user ? (
               <a href="/analyze" className="btn-gold py-2 px-4 text-sm">Open App</a>

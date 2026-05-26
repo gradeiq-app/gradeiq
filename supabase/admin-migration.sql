@@ -1,4 +1,4 @@
--- GradeIQ — Admin migration
+-- RawIQ — Admin migration
 -- Run after profiles-migration.sql and promo-codes-migration.sql
 
 -- ── 1. Admin flag on profiles ─────────────────────────────────

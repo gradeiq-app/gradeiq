@@ -1,5 +1,5 @@
 -- ============================================================
--- GradeIQ — 2025-26 Basketball + 2025 Football Completeness Patch
+-- RawIQ — 2025-26 Basketball + 2025 Football Completeness Patch
 -- Source: Beckett release calendar + ChecklistInsider (May 2026)
 -- ============================================================
 

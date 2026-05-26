@@ -1,5 +1,5 @@
 -- ============================================================
--- GradeIQ — Baseball / Basketball cleanup + missing set additions
+-- RawIQ — Baseball / Basketball cleanup + missing set additions
 -- Run date: 2026-05-22
 -- ============================================================
 

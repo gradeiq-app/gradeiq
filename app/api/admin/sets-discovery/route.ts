@@ -131,7 +131,7 @@ interface RssItem { title: string; link: string; source: string }
 async function fetchRssItems(source: { name: string; url: string }): Promise<RssItem[]> {
   try {
     const res = await fetch(source.url, {
-      headers: { 'User-Agent': 'GradeIQ/1.0 (card-set-discovery-bot; contact: admin@gradeiq.app)' },
+      headers: { 'User-Agent': 'RawIQ/1.0 (card-set-discovery-bot; contact: admin@rawiq.app)' },
       signal: AbortSignal.timeout(10_000),
     })
     if (!res.ok) return []

@@ -41,7 +41,7 @@ export default function DashboardPage() {
     <div className="flex flex-col gap-8">
       <div>
         <h1 className="font-heading text-3xl text-white">Dashboard</h1>
-        <p className="mt-1 text-sm text-muted">Overview of GradeIQ usage.</p>
+        <p className="mt-1 text-sm text-muted">Overview of RawIQ usage.</p>
       </div>
 
       {/* Stat cards */}

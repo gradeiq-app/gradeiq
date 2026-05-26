@@ -1,7 +1,7 @@
 import PricingPage from '@/components/PricingPage'
 
 export const metadata = {
-  title: 'Pricing — GradeIQ',
+  title: 'Pricing — RawIQ',
   description: 'Simple, transparent pricing for sports card collectors and dealers.',
 }
 

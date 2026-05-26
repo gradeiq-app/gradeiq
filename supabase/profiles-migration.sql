@@ -1,4 +1,4 @@
--- GradeIQ — Profiles migration
+-- RawIQ — Profiles migration
 -- Run this in the Supabase SQL Editor after the initial schema.sql
 
 -- Profiles table: extends auth.users with billing + quota data

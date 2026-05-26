@@ -1,5 +1,5 @@
 -- ============================================================
--- GradeIQ — Vintage expansion: 1948–2009 for all 4 sports
+-- RawIQ — Vintage expansion: 1948–2009 for all 4 sports
 -- Run date: 2026-05-22
 -- ============================================================
 -- Parallel convention:

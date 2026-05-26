@@ -1,4 +1,4 @@
--- GradeIQ Supabase Schema
+-- RawIQ Supabase Schema
 -- Run this in the Supabase SQL editor to create the required tables.
 
 -- Waitlist

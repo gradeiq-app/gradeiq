@@ -16,13 +16,13 @@ const dmSans = DM_Sans({
 })
 
 export const metadata: Metadata = {
-  title: 'GradeIQ — PSA Submission Optimizer',
+  title: 'RawIQ — PSA Submission Optimizer',
   description:
-    'Stop guessing. GradeIQ analyzes real eBay sold data to calculate your exact ROI for every PSA grading tier before you spend a dollar.',
+    'Know before you slab. RawIQ analyzes real eBay sold data to calculate your exact ROI for every PSA grading tier before you spend a dollar.',
   openGraph: {
-    title: 'GradeIQ — PSA Submission Optimizer',
+    title: 'RawIQ — PSA Submission Optimizer',
     description:
-      'Data-driven ROI analysis for sports card collectors. Know before you submit.',
+      'Know before you slab. Data-driven ROI analysis for sports card collectors.',
     type: 'website',
   },
 }

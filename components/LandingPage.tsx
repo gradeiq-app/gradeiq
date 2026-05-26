@@ -108,7 +108,7 @@ export default function LandingPage({ initialShowAuth }: Props) {
       {/* ─── Nav ─── */}
       <header className="fixed inset-x-0 top-0 z-40 border-b border-border/50 bg-background/80 backdrop-blur-md">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-4">
-          <a href="/" className="font-heading text-xl text-gold-gradient">GradeIQ</a>
+          <a href="/" className="font-heading text-xl text-gold-gradient">RawIQ</a>
 
           <nav className="flex items-center gap-3">
             <a href="/pricing" className="hidden text-sm text-muted hover:text-white transition-colors sm:block">
@@ -154,11 +154,11 @@ export default function LandingPage({ initialShowAuth }: Props) {
 
           <h1 className="font-heading text-5xl leading-tight text-white sm:text-6xl lg:text-7xl">
             Know Before{' '}
-            <span className="text-gold-gradient">You Submit.</span>
+            <span className="text-gold-gradient">You Slab.</span>
           </h1>
 
           <p className="max-w-2xl text-lg text-muted sm:text-xl">
-            GradeIQ analyzes eBay completed listings to calculate your exact ROI for every PSA
+            RawIQ analyzes eBay completed listings to calculate your exact ROI for every PSA
             grading tier — Economy, Regular, Express, and Super Express — before you spend a dollar.
           </p>
 
@@ -297,8 +297,8 @@ export default function LandingPage({ initialShowAuth }: Props) {
 
       {/* ─── Footer ─── */}
       <footer className="border-t border-border px-5 py-10 text-center text-sm text-muted">
-        <p className="font-heading text-lg text-gold-gradient mb-2">GradeIQ</p>
-        <p>© {new Date().getFullYear()} GradeIQ. Built for collectors, by collectors.</p>
+        <p className="font-heading text-lg text-gold-gradient mb-2">RawIQ</p>
+        <p>© {new Date().getFullYear()} RawIQ. Built for collectors, by collectors.</p>
         <p className="mt-1 text-xs opacity-60">
           eBay data is for informational purposes only. Past sales do not guarantee future results.
         </p>

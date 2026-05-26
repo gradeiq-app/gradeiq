@@ -201,7 +201,7 @@ export default function AnalyzePage({ user }: Props) {
       {/* ─── Header ─── */}
       <header className="sticky top-0 z-40 border-b border-border bg-background/90 backdrop-blur-md">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-4">
-          <a href="/" className="font-heading text-xl text-gold-gradient">GradeIQ</a>
+          <a href="/" className="font-heading text-xl text-gold-gradient">RawIQ</a>
           <div className="flex items-center gap-4">
             <a href="/pricing" className="hidden text-sm text-muted hover:text-white transition-colors sm:block">
               Pricing

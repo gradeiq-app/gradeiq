@@ -93,7 +93,7 @@ export default function AuthModal({ isOpen, initialMode = 'login', onClose }: Pr
 
         {/* Logo mark */}
         <div className="mb-6 flex flex-col items-center gap-1 text-center">
-          <span className="font-heading text-2xl text-gold-gradient">GradeIQ</span>
+          <span className="font-heading text-2xl text-gold-gradient">RawIQ</span>
           <p className="text-sm text-muted">
             {mode === 'login' ? 'Welcome back.' : 'Create your free account.'}
           </p>

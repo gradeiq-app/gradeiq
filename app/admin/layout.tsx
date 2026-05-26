@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase-server'
 
 export const dynamic = 'force-dynamic'
 
-export const metadata = { title: 'Admin — GradeIQ' }
+export const metadata = { title: 'Admin — RawIQ' }
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient()
@@ -23,7 +23,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       {/* Admin header */}
       <header className="sticky top-0 z-40 border-b border-border bg-background/90 backdrop-blur-md">
         <div className="mx-auto flex max-w-7xl items-center gap-6 px-5 py-3">
-          <a href="/" className="font-heading text-lg text-gold-gradient">GradeIQ</a>
+          <a href="/" className="font-heading text-lg text-gold-gradient">RawIQ</a>
           <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-xs font-semibold text-amber-400">
             Admin
           </span>
