@@ -9,6 +9,7 @@
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { isContaminatedCardCount } from '@/lib/contaminated-signatures'
 
 export const dynamic = 'force-dynamic'
 
@@ -40,7 +41,8 @@ export async function GET(request: NextRequest) {
     .select(`
       manufacturer:manufacturers!inner(id, name, slug),
       sport:sports!inner(slug),
-      year
+      year,
+      cards(count)
     `)
     .eq('sports.slug', sport)
     .eq('year', year)
@@ -53,6 +55,8 @@ export async function GET(request: NextRequest) {
 
   const map = new Map<string, Brand>()
   for (const row of data ?? []) {
+    const count = (row.cards as Array<{ count: number }> | null)?.[0]?.count ?? 0
+    if (isContaminatedCardCount(sport, count)) continue
     const m = row.manufacturer as unknown as Brand | null
     if (m?.id && !map.has(m.id)) map.set(m.id, m)
   }
