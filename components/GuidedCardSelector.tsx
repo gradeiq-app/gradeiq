@@ -188,6 +188,21 @@ export default function GuidedCardSelector({ onSubmit, loading }: Props) {
     if (s <= 7) setCostBasis('')
   }
 
+  function resetAll() {
+    setSport('')
+    setYear(null)
+    setBrand(null)
+    setSetSel(null)
+    setPlayerName('')
+    setPlayerId(null)
+    setCardType(null)
+    setParallel(null)
+    setParallelPrice(null)
+    setVerifierConfirmed(false)
+    setCostBasis('')
+    setStep(1)
+  }
+
   function goTo(s: Step) { setStep(s) }
   function back()       { if (step > 1) setStep((step - 1) as Step) }
 
@@ -216,7 +231,22 @@ export default function GuidedCardSelector({ onSubmit, loading }: Props) {
 
   return (
     <div className="flex flex-col gap-5">
-      <StepIndicator step={step} />
+      <div className="flex items-start justify-between gap-3">
+        <StepIndicator step={step} />
+        {step > 1 && (
+          <button
+            type="button"
+            onClick={resetAll}
+            disabled={loading}
+            aria-label="Start over"
+            title="Start over"
+            className="shrink-0 rounded-md border border-border bg-surface px-2 py-1 text-xs text-muted transition-colors hover:border-gold/40 hover:text-gold disabled:opacity-50"
+          >
+            <span className="hidden sm:inline">↻ Start over</span>
+            <span className="sm:hidden" aria-hidden>✕</span>
+          </button>
+        )}
+      </div>
 
       <Breadcrumb
         sport={sport}
