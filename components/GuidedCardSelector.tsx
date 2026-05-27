@@ -231,22 +231,22 @@ export default function GuidedCardSelector({ onSubmit, loading }: Props) {
 
   return (
     <div className="flex flex-col gap-5">
-      <div className="flex items-start justify-between gap-3">
-        <StepIndicator step={step} />
-        {step > 1 && (
+      <StepIndicator step={step} />
+
+      {step > 1 && (
+        <div className="-mt-2 flex justify-end">
           <button
             type="button"
             onClick={resetAll}
             disabled={loading}
             aria-label="Start over"
             title="Start over"
-            className="shrink-0 rounded-md border border-border bg-surface px-2 py-1 text-xs text-muted transition-colors hover:border-gold/40 hover:text-gold disabled:opacity-50"
+            className="text-xs text-muted transition-colors hover:text-gold disabled:opacity-50"
           >
-            <span className="hidden sm:inline">↻ Start over</span>
-            <span className="sm:hidden" aria-hidden>✕</span>
+            ↻ Start over
           </button>
-        )}
-      </div>
+        </div>
+      )}
 
       <Breadcrumb
         sport={sport}
