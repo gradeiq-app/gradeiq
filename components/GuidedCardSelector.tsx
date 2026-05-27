@@ -230,13 +230,16 @@ export default function GuidedCardSelector({ onSubmit, loading }: Props) {
   }
 
   return (
-    <div className="flex w-full min-w-0 flex-col gap-5">
-      <div className="w-full min-w-0 overflow-x-auto">
+    <div className="flex w-full min-w-0 flex-col gap-5 overflow-hidden">
+      <div className="w-full min-w-0 overflow-x-hidden">
         <StepIndicator step={step} />
       </div>
 
       {step > 1 && (
-        <div className="mt-1 w-full text-right">
+        <div
+          className="mt-1 w-full text-right"
+          style={{ maxWidth: '100%', overflowX: 'hidden' }}
+        >
           <button
             type="button"
             onClick={resetAll}
