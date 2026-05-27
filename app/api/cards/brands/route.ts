@@ -2,6 +2,10 @@
  * GET /api/cards/brands?sport=&year=
  * Distinct manufacturers that have at least one set for this sport + year.
  * Drives the Brand pill row in the guided selector.
+ *
+ * Response: { brands: Array<{ id, name, slug }> }
+ *   - 400 if sport or year missing / non-numeric
+ *   - 500 if Supabase credentials are unset or query errors
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
