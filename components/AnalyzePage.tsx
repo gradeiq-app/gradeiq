@@ -223,10 +223,10 @@ export default function AnalyzePage({ user }: Props) {
       )}
 
       <main className="mx-auto max-w-6xl px-5 py-10 lg:py-14">
-        <div className="grid gap-10 lg:grid-cols-[1fr_280px]">
+        <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_280px]">
 
           {/* ─── Left ─── */}
-          <div className="flex flex-col gap-8">
+          <div className="flex min-w-0 flex-col gap-8">
             <div>
               <div className="mb-5 flex items-start justify-between gap-4">
                 <div>
