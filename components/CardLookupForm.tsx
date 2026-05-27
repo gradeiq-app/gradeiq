@@ -122,7 +122,7 @@ export default function CardLookupForm({ onSubmit, loading }: Props) {
     onSubmit({
       playerName: playerName.trim(),
       // Send the formatted year so eBay search matches real listing titles
-      // e.g. basketball 2024 → "2024-25", baseball 2024 → "2024"
+      // e.g. basketball 2024 → "2023-24", baseball 2024 → "2024"
       year:       displayYear(+year, sport),
       brand,
       set:        setName,
