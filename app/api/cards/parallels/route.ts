@@ -163,9 +163,13 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    parallels = ensureBase(dedupeByLabel(parallels))
+    // Only synthesize a Base entry when at least one real parallel exists;
+    // truly-empty results stay empty so the caller can branch on "no data".
+    const finalList = parallels.length > 0
+      ? sortParallels(ensureBase(dedupeByLabel(parallels)))
+      : []
     return NextResponse.json(
-      { parallels: sortParallels(parallels), set_id: resolvedSetId, source: parallels.every(p => p.id === null) ? 'templates' : 'parallels' },
+      { parallels: finalList, set_id: resolvedSetId, source: finalList.every(p => p.id === null) ? 'templates' : 'parallels' },
       { headers: { 'Cache-Control': 'no-store' } },
     )
   }
@@ -229,7 +233,11 @@ export async function GET(request: NextRequest) {
   }
 
   const rawCount  = parallels.length
-  const finalList = sortParallels(ensureBase(dedupeByLabel(parallels)))
+  // Only synthesize a Base entry when at least one real parallel exists;
+  // truly-empty results stay empty so the caller can branch on "no data".
+  const finalList = parallels.length > 0
+    ? sortParallels(ensureBase(dedupeByLabel(parallels)))
+    : []
 
   console.log(
     `[cards/parallels] setId=${setId} cards=${cardIds.length} ` +

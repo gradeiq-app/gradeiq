@@ -85,7 +85,7 @@ interface CardTypeEntry {
   label:       string
 }
 
-interface Parallel {
+export interface Parallel {
   id:                  string | null
   label:               string
   ebay_kw:             string
@@ -96,7 +96,7 @@ interface Parallel {
   is_base:             boolean
 }
 
-interface PriceInfo {
+export interface PriceInfo {
   cached:       boolean
   raw_avg?:     number
   raw_count?:   number
@@ -172,7 +172,8 @@ export default function GuidedCardSelector({ onSubmit, loading }: Props) {
   const [playerName, setPlayerName] = useState<string>('')
   const [playerId,   setPlayerId]   = useState<string | null>(null)
   const [cardType,   setCardType]   = useState<CardTypeEntry | null>(null)
-  const [parallel,   setParallel]   = useState<Parallel | null>(null)
+  // Three-state: undefined = not yet fetched, null = fetched & no parallels exist, object = picked
+  const [parallel,   setParallel]   = useState<Parallel | null | undefined>(undefined)
   const [parallelPrice, setParallelPrice] = useState<PriceInfo | null>(null)
 
   const [verifierConfirmed, setVerifierConfirmed] = useState(false)
@@ -184,7 +185,7 @@ export default function GuidedCardSelector({ onSubmit, loading }: Props) {
     if (s <= 3) setSetSel(null)
     if (s <= 4) { setPlayerName(''); setPlayerId(null) }
     if (s <= 5) setCardType(null)
-    if (s <= 6) { setParallel(null); setParallelPrice(null); setVerifierConfirmed(false) }
+    if (s <= 6) { setParallel(undefined); setParallelPrice(null); setVerifierConfirmed(false) }
     if (s <= 7) setCostBasis('')
   }
 
@@ -196,7 +197,7 @@ export default function GuidedCardSelector({ onSubmit, loading }: Props) {
     setPlayerName('')
     setPlayerId(null)
     setCardType(null)
-    setParallel(null)
+    setParallel(undefined)
     setParallelPrice(null)
     setVerifierConfirmed(false)
     setCostBasis('')
@@ -215,7 +216,7 @@ export default function GuidedCardSelector({ onSubmit, loading }: Props) {
     // step gates already enforce sport/year/brand/set/parallel before we
     // arrive at Step 8. Cost basis defaults to 0 when blank so the user can
     // submit without typing one in.
-    if (!sport || year == null || !brand || !setSel || !parallel) return
+    if (!sport || year == null || !brand || !setSel || parallel === undefined) return
     if (!playerName.trim()) return
     onSubmit({
       playerName: playerName.trim(),
@@ -223,7 +224,7 @@ export default function GuidedCardSelector({ onSubmit, loading }: Props) {
       brand:      brand.name,
       set:        setSel.name,
       cardNumber: resolvedCardNumber,
-      parallel:   parallel.ebay_kw ?? '',
+      parallel:   parallel?.ebay_kw ?? '',
       costBasis:  typeof costBasis === 'number' ? costBasis : 0,
     })
   }
@@ -260,7 +261,7 @@ export default function GuidedCardSelector({ onSubmit, loading }: Props) {
         setSel={setSel}
         playerName={playerName}
         cardType={cardType}
-        parallel={parallel}
+        parallel={parallel ?? null}
         onJump={(s) => goTo(s)}
       />
 
@@ -322,7 +323,7 @@ export default function GuidedCardSelector({ onSubmit, loading }: Props) {
             onPick={(t) => {
               setCardType(t)
               // New card type invalidates parallel selection.
-              setParallel(null)
+              setParallel(undefined)
               setParallelPrice(null)
               setVerifierConfirmed(false)
               goTo(7)
@@ -340,11 +341,17 @@ export default function GuidedCardSelector({ onSubmit, loading }: Props) {
             setName={setSel.name}
             cardNumber={resolvedCardNumber}
             playerName={playerName}
-            selected={parallel}
+            selected={parallel ?? null}
             onPick={(p, price) => {
               setParallel(p)
               setParallelPrice(price)
               setVerifierConfirmed(false)
+            }}
+            onNoParallels={() => {
+              setParallel(null)
+              setParallelPrice(null)
+              setVerifierConfirmed(false)
+              goTo(8)
             }}
             confirmed={verifierConfirmed}
             setConfirmed={setVerifierConfirmed}
@@ -352,7 +359,7 @@ export default function GuidedCardSelector({ onSubmit, loading }: Props) {
           />
         )}
 
-        {step === 8 && setSel && brand && parallel && (
+        {step === 8 && setSel && brand && parallel !== undefined && (
           <Step8CostBasis
             sport={sport}
             year={year!}
@@ -1071,29 +1078,31 @@ function Step6CardType({
 
 // ─── Step 7: Parallel + Verifier ─────────────────────────────────────────────
 
-function Step7Parallel({
+export function Step7Parallel({
   setId, cardId, sportSlug, year, brand, setName, cardNumber, playerName,
-  selected, onPick, confirmed, setConfirmed, onConfirmed,
+  selected, onPick, onNoParallels, confirmed, setConfirmed, onConfirmed,
 }: {
-  setId:        string
-  cardId:       string | null
-  sportSlug:    string
-  year:         number
-  brand:        string
-  setName:      string
-  cardNumber:   string
-  playerName:   string
-  selected:     Parallel | null
-  onPick:       (p: Parallel, price: PriceInfo | null) => void
-  confirmed:    boolean
-  setConfirmed: (b: boolean) => void
-  onConfirmed:  () => void
+  setId:         string
+  cardId:        string | null
+  sportSlug:     string
+  year:          number
+  brand:         string
+  setName:       string
+  cardNumber:    string
+  playerName:    string
+  selected:      Parallel | null
+  onPick:        (p: Parallel, price: PriceInfo | null) => void
+  onNoParallels: () => void
+  confirmed:     boolean
+  setConfirmed:  (b: boolean) => void
+  onConfirmed:   () => void
 }) {
   const [parallels, setParallels] = useState<Parallel[]>([])
   const [loading, setLoading]     = useState(true)
   const [error, setError]         = useState<string | null>(null)
   const [source, setSource]       = useState<'parallels' | 'templates' | null>(null)
   const [prices, setPrices]       = useState<Record<string, PriceInfo>>({})
+  const advancedRef = useRef(false)
 
   // Prefer card-scoped parallels when we have a resolved card_id; otherwise
   // fall back to set-level (which the API will fill from parallel_templates
@@ -1110,12 +1119,20 @@ function Step7Parallel({
       .then(d => {
         if (cancelled) return
         if (d.error) throw new Error(d.error)
-        setParallels(d.parallels ?? [])
+        const list = (d.parallels ?? []) as Parallel[]
+        setParallels(list)
         setSource(d.source ?? null)
+        // Zero parallels on file → auto-advance to Step 8 with parallel=null.
+        // Guard against re-firing if the user navigates back into Step 7.
+        if (list.length === 0 && !advancedRef.current) {
+          advancedRef.current = true
+          onNoParallels()
+        }
       })
       .catch(e => { if (!cancelled) setError(e.message ?? 'Failed to load parallels') })
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [setId, cardId])
 
   const fetchPrice = useCallback(async (p: Parallel): Promise<PriceInfo | null> => {
@@ -1273,7 +1290,7 @@ function Step8CostBasis({
   cardNumber:   string
   playerName:   string
   cardType:     CardTypeEntry | null
-  parallel:     Parallel
+  parallel:     Parallel | null
   price:        PriceInfo | null
   costBasis:    number | ''
   setCostBasis: (v: number | '') => void
@@ -1298,7 +1315,7 @@ function Step8CostBasis({
       </label>
 
       <div className="flex gap-4 rounded-xl border border-gold/20 bg-surface p-4">
-        {parallel.reference_image_url ? (
+        {parallel?.reference_image_url ? (
           <img
             src={parallel.reference_image_url}
             alt={`${playerName} reference`}
@@ -1320,11 +1337,21 @@ function Step8CostBasis({
             </p>
           )}
           <p className="text-sm text-muted">
-            {cardNumber ? `#${cardNumber}` : 'No card #'} · {parallel.label}
-            {parallel.print_run != null && (
-              <span className="ml-1 text-gold">/{parallel.print_run}</span>
+            {cardNumber ? `#${cardNumber}` : 'No card #'}
+            {parallel && (
+              <>
+                {' · '}{parallel.label}
+                {parallel.print_run != null && (
+                  <span className="ml-1 text-gold">/{parallel.print_run}</span>
+                )}
+              </>
             )}
           </p>
+          {parallel === null && (
+            <p className="text-xs italic text-muted/70">
+              No parallels available — using base version
+            </p>
+          )}
           {price?.cached && (
             <div className="mt-1 flex gap-3 text-xs text-muted">
               {price.raw_avg != null && price.raw_avg > 0 && (
