@@ -3,23 +3,21 @@
 /**
  * GuidedCardSelector — guided, set-driven card entry for /analyze.
  *
- * Replaces the old free-text dropdown form. Built around the `sets` and
- * `parallels` tables (well-populated) and degrades gracefully when the
- * `cards`/`players` tables are sparse:
+ * Eight-step flow:
  *
  *   1. Sport          (pill tabs)
  *   2. Year           (pills, distinct years from sets for the sport)
  *   3. Brand          (pills, distinct manufacturers for sport+year)
  *   4. Set            (tiles, sets for sport+year+brand)
- *   5. Card details   (player name + card number; optional autocomplete from
- *                      cards/players when seeded, free text otherwise)
- *   6. Parallel       (tiles from parallels.set_id, with parallel_templates
- *                      fallback; inline ParallelVerifier; always shows once
- *                      a set is chosen, never blocked by missing player data)
- *   7. Cost basis     (summary card + editable cost + Run Analysis)
+ *   5. Player         (autocomplete scoped to players who have cards in the set)
+ *   6. Card Type      (tiles per distinct card_type / subset_name for this
+ *                      player+set; auto-skips silently when only one option)
+ *   7. Parallel       (parallels scoped to the chosen card_id when available,
+ *                      else set.parallel_templates; inline ParallelVerifier)
+ *   8. Cost basis     (summary card + editable cost + Run Analysis)
  *
- * "Card not listed? Enter manually →" toggles a free-text fallback form
- * for cases where the set picker doesn't cover the user's card.
+ * "Card not listed? Enter manually →" toggles a free-text fallback form for
+ * cases where the picker doesn't cover the user's card.
  */
 
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
@@ -45,12 +43,13 @@ const STEP_LABELS = [
   'Year',
   'Brand',
   'Set',
-  'Card #',
+  'Player',
+  'Card Type',
   'Parallel',
   'Cost',
 ] as const
 
-type Step = 1 | 2 | 3 | 4 | 5 | 6 | 7
+type Step = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8
 
 // ─── Domain types ─────────────────────────────────────────────────────────────
 
@@ -76,6 +75,14 @@ interface Player {
   name:     string
   position: string | null
   sport:    { id: string; name: string; slug: string } | null
+}
+
+interface CardTypeEntry {
+  card_type:   string
+  subset_name: string | null
+  card_id:     string | null
+  card_number: string | null
+  label:       string
 }
 
 interface Parallel {
@@ -136,6 +143,14 @@ function formatPrice(n: number | undefined): string {
   return n >= 100 ? `$${n.toFixed(0)}` : `$${n.toFixed(2)}`
 }
 
+const CARD_TYPE_GROUP_LABEL: Record<string, string> = {
+  base:       'Base',
+  insert:     'Inserts',
+  autograph:  'Autographs',
+  auto_relic: 'Auto Relics',
+  relic:      'Relics',
+}
+
 // ─── Props ────────────────────────────────────────────────────────────────────
 
 interface Props {
@@ -155,7 +170,8 @@ export default function GuidedCardSelector({ onSubmit, loading }: Props) {
   const [brand,      setBrand]      = useState<ManufacturerRef | null>(null)
   const [setSel,     setSetSel]     = useState<SetOption | null>(null)
   const [playerName, setPlayerName] = useState<string>('')
-  const [cardNumber, setCardNumber] = useState<string>('')
+  const [playerId,   setPlayerId]   = useState<string | null>(null)
+  const [cardType,   setCardType]   = useState<CardTypeEntry | null>(null)
   const [parallel,   setParallel]   = useState<Parallel | null>(null)
   const [parallelPrice, setParallelPrice] = useState<PriceInfo | null>(null)
 
@@ -166,13 +182,18 @@ export default function GuidedCardSelector({ onSubmit, loading }: Props) {
     if (s <= 1) setYear(null)
     if (s <= 2) setBrand(null)
     if (s <= 3) setSetSel(null)
-    if (s <= 4) { setPlayerName(''); setCardNumber('') }
-    if (s <= 5) { setParallel(null); setParallelPrice(null); setVerifierConfirmed(false) }
-    if (s <= 6) setCostBasis('')
+    if (s <= 4) { setPlayerName(''); setPlayerId(null) }
+    if (s <= 5) setCardType(null)
+    if (s <= 6) { setParallel(null); setParallelPrice(null); setVerifierConfirmed(false) }
+    if (s <= 7) setCostBasis('')
   }
 
   function goTo(s: Step) { setStep(s) }
   function back()       { if (step > 1) setStep((step - 1) as Step) }
+
+  // Card number is derived from the resolved card_type entry when available.
+  // Manual flow keeps it blank — the eBay query simply gets less specific.
+  const resolvedCardNumber = cardType?.card_number ?? ''
 
   function handleAnalyze() {
     if (!sport || year == null || !brand || !setSel || !parallel || !verifierConfirmed) return
@@ -182,7 +203,7 @@ export default function GuidedCardSelector({ onSubmit, loading }: Props) {
       year:       displayYear(year, sport),
       brand:      brand.name,
       set:        setSel.name,
-      cardNumber: cardNumber.trim(),
+      cardNumber: resolvedCardNumber,
       parallel:   parallel.ebay_kw ?? '',
       costBasis:  typeof costBasis === 'number' ? costBasis : 0,
     })
@@ -202,8 +223,8 @@ export default function GuidedCardSelector({ onSubmit, loading }: Props) {
         year={year}
         brand={brand}
         setSel={setSel}
-        cardNumber={cardNumber}
         playerName={playerName}
+        cardType={cardType}
         parallel={parallel}
         onJump={(s) => goTo(s)}
       />
@@ -244,24 +265,45 @@ export default function GuidedCardSelector({ onSubmit, loading }: Props) {
         )}
 
         {step === 5 && setSel && (
-          <Step5CardDetails
+          <Step5Player
             setId={setSel.id}
             playerName={playerName}
-            cardNumber={cardNumber}
-            onPlayerChange={setPlayerName}
-            onCardNumberChange={setCardNumber}
+            playerId={playerId}
+            onPlayerChange={(name, id) => {
+              setPlayerName(name)
+              setPlayerId(id)
+              // Picking a new player invalidates downstream card-type/parallel choices.
+              if (id !== playerId) resetFrom(5)
+            }}
             onContinue={() => goTo(6)}
           />
         )}
 
         {step === 6 && setSel && (
-          <Step6Parallel
+          <Step6CardType
             setId={setSel.id}
+            playerId={playerId}
+            selected={cardType}
+            onPick={(t) => {
+              setCardType(t)
+              // New card type invalidates parallel selection.
+              setParallel(null)
+              setParallelPrice(null)
+              setVerifierConfirmed(false)
+              goTo(7)
+            }}
+          />
+        )}
+
+        {step === 7 && setSel && (
+          <Step7Parallel
+            setId={setSel.id}
+            cardId={cardType?.card_id ?? null}
             sportSlug={sport}
             year={year!}
             brand={brand!.name}
             setName={setSel.name}
-            cardNumber={cardNumber}
+            cardNumber={resolvedCardNumber}
             playerName={playerName}
             selected={parallel}
             onPick={(p, price) => {
@@ -271,18 +313,19 @@ export default function GuidedCardSelector({ onSubmit, loading }: Props) {
             }}
             confirmed={verifierConfirmed}
             setConfirmed={setVerifierConfirmed}
-            onConfirmed={() => goTo(7)}
+            onConfirmed={() => goTo(8)}
           />
         )}
 
-        {step === 7 && setSel && brand && parallel && (
-          <Step7CostBasis
+        {step === 8 && setSel && brand && parallel && (
+          <Step8CostBasis
             sport={sport}
             year={year!}
             brand={brand}
             setSel={setSel}
-            cardNumber={cardNumber}
+            cardNumber={resolvedCardNumber}
             playerName={playerName}
+            cardType={cardType}
             parallel={parallel}
             price={parallelPrice}
             costBasis={costBasis}
@@ -354,14 +397,14 @@ function StepIndicator({ step }: { step: number }) {
 // ─── Breadcrumb ──────────────────────────────────────────────────────────────
 
 function Breadcrumb({
-  sport, year, brand, setSel, cardNumber, playerName, parallel, onJump,
+  sport, year, brand, setSel, playerName, cardType, parallel, onJump,
 }: {
   sport:      string
   year:       number | null
   brand:      ManufacturerRef | null
   setSel:     SetOption | null
-  cardNumber: string
   playerName: string
+  cardType:   CardTypeEntry | null
   parallel:   Parallel | null
   onJump:     (s: Step) => void
 }) {
@@ -373,13 +416,17 @@ function Breadcrumb({
   if (year != null) parts.push({ label: displayYear(year, sport), step: 2 })
   if (brand)        parts.push({ label: brand.name, step: 3 })
   if (setSel)       parts.push({ label: setSel.name, step: 4 })
-  if (playerName || cardNumber) {
+  if (playerName) {
+    const cardNum = cardType?.card_number
     parts.push({
-      label: [playerName, cardNumber ? `#${cardNumber}` : null].filter(Boolean).join(' '),
+      label: cardNum ? `${playerName} #${cardNum}` : playerName,
       step:  5,
     })
   }
-  if (parallel) parts.push({ label: parallel.label, step: 6 })
+  if (cardType && cardType.card_type !== 'base') {
+    parts.push({ label: cardType.label, step: 6 })
+  }
+  if (parallel) parts.push({ label: parallel.label, step: 7 })
 
   if (parts.length === 0) return null
 
@@ -676,43 +723,52 @@ function Step4Set({
   )
 }
 
-// ─── Step 5: Card # + Player ─────────────────────────────────────────────────
+// ─── Step 5: Player ──────────────────────────────────────────────────────────
 
-function Step5CardDetails({
-  setId, playerName, cardNumber,
-  onPlayerChange, onCardNumberChange, onContinue,
+function Step5Player({
+  setId, playerName, playerId,
+  onPlayerChange, onContinue,
 }: {
-  setId:              string
-  playerName:         string
-  cardNumber:         string
-  onPlayerChange:     (v: string) => void
-  onCardNumberChange: (v: string) => void
-  onContinue:         () => void
+  setId:          string
+  playerName:     string
+  playerId:       string | null
+  onPlayerChange: (name: string, id: string | null) => void
+  onContinue:     () => void
 }) {
-  // Load checklist for autocomplete — silently no-op if empty
-  const [cards, setCards]     = useState<CardOption[]>([])
+  // Browse-list of all players in the chosen set, derived from the checklist.
+  const [browse, setBrowse]   = useState<Array<{ id: string; name: string }>>([])
   const [loading, setLoading] = useState(true)
-  const [filter, setFilter]   = useState('')
 
   useEffect(() => {
     let cancelled = false
     setLoading(true)
     fetch(`/api/cards/checklist?setId=${encodeURIComponent(setId)}`)
       .then(r => r.json())
-      .then(d => { if (!cancelled) setCards(d.cards ?? []) })
-      .catch(() => { /* checklist is optional */ })
+      .then((d: { cards?: CardOption[] }) => {
+        if (cancelled) return
+        const uniq = new Map<string, { id: string; name: string }>()
+        for (const c of d.cards ?? []) {
+          const p = c.player
+          if (!p?.id || !p.name) continue
+          if (!uniq.has(p.id)) uniq.set(p.id, { id: p.id, name: p.name })
+        }
+        const arr = Array.from(uniq.values()).sort((a, b) => a.name.localeCompare(b.name))
+        setBrowse(arr)
+      })
+      .catch(() => { /* browse list is optional */ })
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
   }, [setId])
 
-  // Player autocomplete (debounced 300 ms) — also optional
-  const [playerResults, setPlayerResults] = useState<Player[]>([])
-  const [playerOpen, setPlayerOpen]       = useState(false)
+  // Autocomplete by typed name, scoped to players in this set.
+  const [results, setResults]   = useState<Player[]>([])
+  const [open, setOpen]         = useState(false)
+  const [filter, setFilter]     = useState('')
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current)
-    if (playerName.trim().length < 2) { setPlayerResults([]); return }
+    if (playerName.trim().length < 2) { setResults([]); return }
     debounceRef.current = setTimeout(async () => {
       try {
         const params = new URLSearchParams({
@@ -722,95 +778,75 @@ function Step5CardDetails({
         })
         const r = await fetch(`/api/cards/search?${params}`)
         const d = await r.json()
-        setPlayerResults(d.players ?? [])
+        setResults(d.players ?? [])
       } catch {
-        setPlayerResults([])
+        setResults([])
       }
     }, 300)
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current) }
   }, [playerName, setId])
 
-  const filteredCards = useMemo(() => {
+  const filteredBrowse = useMemo(() => {
     const f = filter.trim().toLowerCase()
-    if (!f) return cards
-    return cards.filter(c => {
-      const num  = (c.card_number ?? '').toLowerCase()
-      const name = (c.name        ?? '').toLowerCase()
-      const pn   = (c.player?.name ?? '').toLowerCase()
-      return num.includes(f) || name.includes(f) || pn.includes(f)
-    })
-  }, [cards, filter])
+    if (!f) return browse
+    return browse.filter(p => p.name.toLowerCase().includes(f))
+  }, [browse, filter])
 
-  function applyCard(c: CardOption) {
-    onCardNumberChange(c.card_number ?? '')
-    if (c.player?.name) onPlayerChange(c.player.name)
-  }
-
+  // canContinue is just "has a name typed" — id is optional (falls back to
+  // free-text flow, Step 6 auto-skips, parallel uses set-level templates).
   const canContinue = !!playerName.trim()
 
   return (
     <div className="flex flex-col gap-4">
       <label className="block text-xs font-medium uppercase tracking-wider text-muted">
-        Card details
+        Who's on the card?
       </label>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        {/* Player name with optional autocomplete */}
-        <div className="relative">
-          <label className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-muted">
-            Player name *
-          </label>
-          <input
-            autoFocus
-            type="text"
-            value={playerName}
-            onChange={e => { onPlayerChange(e.target.value); setPlayerOpen(true) }}
-            onFocus={() => setPlayerOpen(true)}
-            placeholder="e.g. Patrick Mahomes"
-            className="input-base"
-            autoComplete="off"
-          />
-          {playerOpen && playerResults.length > 0 && playerName.trim().length >= 2 && (
-            <div className="absolute z-10 mt-1 w-full max-h-56 overflow-y-auto rounded-lg border border-border bg-surface shadow-lg">
-              {playerResults.map(p => (
-                <button
-                  key={p.id}
-                  type="button"
-                  onClick={() => { onPlayerChange(p.name); setPlayerOpen(false) }}
-                  className="flex w-full items-center justify-between gap-3 border-b border-border/50 px-3 py-2 text-left text-sm transition-colors last:border-b-0 hover:bg-surface-2"
-                >
-                  <span className="text-white">{p.name}</span>
-                  {p.sport?.name && (
-                    <span className="text-xs text-muted">{p.sport.name}</span>
-                  )}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Card number — free text */}
-        <div>
-          <label className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-muted">
-            Card number
-          </label>
-          <input
-            type="text"
-            value={cardNumber}
-            onChange={e => onCardNumberChange(e.target.value)}
-            placeholder="e.g. 15, RC, 250"
-            className="input-base"
-          />
-          <p className="mt-1 text-xs text-muted/70">Optional — leave blank if unknown.</p>
-        </div>
+      {/* Player name autocomplete */}
+      <div className="relative max-w-md">
+        <input
+          autoFocus
+          type="text"
+          value={playerName}
+          onChange={e => { onPlayerChange(e.target.value, null); setOpen(true) }}
+          onFocus={() => setOpen(true)}
+          placeholder="e.g. Patrick Mahomes"
+          className="input-base"
+          autoComplete="off"
+        />
+        {open && results.length > 0 && playerName.trim().length >= 2 && (
+          <div className="absolute z-10 mt-1 w-full max-h-56 overflow-y-auto rounded-lg border border-border bg-surface shadow-lg">
+            {results.map(p => (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => { onPlayerChange(p.name, p.id); setOpen(false) }}
+                className="flex w-full items-center justify-between gap-3 border-b border-border/50 px-3 py-2 text-left text-sm transition-colors last:border-b-0 hover:bg-surface-2"
+              >
+                <span className="text-white">{p.name}</span>
+                {p.sport?.name && (
+                  <span className="text-xs text-muted">{p.sport.name}</span>
+                )}
+              </button>
+            ))}
+          </div>
+        )}
+        {playerId && (
+          <p className="mt-1 text-xs text-emerald-400/80">✓ Matched to set checklist</p>
+        )}
+        {!playerId && playerName.trim().length >= 2 && (
+          <p className="mt-1 text-xs text-muted/70">
+            Don't see your player? Continue anyway — we'll skip the card-type step and look up parallels from the set template.
+          </p>
+        )}
       </div>
 
-      {/* Optional checklist picker (only renders if checklist has rows) */}
-      {!loading && cards.length > 0 && (
+      {/* Browse list of players in this set */}
+      {!loading && browse.length > 0 && (
         <div className="rounded-lg border border-border bg-surface p-3">
           <div className="mb-2 flex items-center justify-between gap-2">
             <p className="text-xs font-medium uppercase tracking-wider text-muted">
-              Or pick from the set checklist ({cards.length})
+              Or browse players in this set ({browse.length})
             </p>
             <input
               type="text"
@@ -821,20 +857,19 @@ function Step5CardDetails({
             />
           </div>
           <div className="max-h-56 overflow-y-auto rounded border border-border/60">
-            {filteredCards.slice(0, 50).map(c => (
+            {filteredBrowse.slice(0, 50).map(p => (
               <button
-                key={c.id}
+                key={p.id}
                 type="button"
-                onClick={() => applyCard(c)}
-                className="flex w-full items-center gap-3 border-b border-border/40 px-3 py-2 text-left text-sm transition-colors last:border-b-0 hover:bg-surface-2"
+                onClick={() => onPlayerChange(p.name, p.id)}
+                className={`flex w-full items-center gap-3 border-b border-border/40 px-3 py-2 text-left text-sm transition-colors last:border-b-0 hover:bg-surface-2 ${
+                  playerId === p.id ? 'bg-gold-muted/40' : ''
+                }`}
               >
-                <span className="rounded bg-border px-1.5 py-0.5 font-mono text-[11px] text-gold">
-                  {c.card_number ? `#${c.card_number}` : '—'}
-                </span>
-                <span className="text-white">{c.player?.name ?? c.name ?? 'Card'}</span>
+                <span className="text-white">{p.name}</span>
               </button>
             ))}
-            {filteredCards.length > 50 && (
+            {filteredBrowse.length > 50 && (
               <p className="border-t border-border/40 px-3 py-2 text-center text-xs text-muted">
                 Showing first 50 — refine your filter to see more.
               </p>
@@ -843,9 +878,9 @@ function Step5CardDetails({
         </div>
       )}
 
-      {!loading && cards.length === 0 && (
+      {!loading && browse.length === 0 && (
         <p className="rounded-lg border border-dashed border-border/60 bg-background/30 px-3 py-2 text-xs text-muted">
-          Set checklist not seeded yet — type the card number above (or leave blank) and continue to the parallel selector.
+          Set checklist not seeded yet — type a name above and continue. We'll look up parallels from the set template.
         </p>
       )}
 
@@ -856,20 +891,157 @@ function Step5CardDetails({
           onClick={onContinue}
           className="btn-gold px-6 py-2 text-sm disabled:opacity-50"
         >
-          Continue to parallel →
+          Continue →
         </button>
       </div>
     </div>
   )
 }
 
-// ─── Step 6: Parallel + Verifier ─────────────────────────────────────────────
+// ─── Step 6: Card Type ───────────────────────────────────────────────────────
 
-function Step6Parallel({
-  setId, sportSlug, year, brand, setName, cardNumber, playerName,
+const FREETEXT_BASE: CardTypeEntry = {
+  card_type:   'base',
+  subset_name: null,
+  card_id:     null,
+  card_number: null,
+  label:       'Base',
+}
+
+function Step6CardType({
+  setId, playerId, selected, onPick,
+}: {
+  setId:    string
+  playerId: string | null
+  selected: CardTypeEntry | null
+  onPick:   (t: CardTypeEntry) => void
+}) {
+  const [types, setTypes]     = useState<CardTypeEntry[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError]     = useState<string | null>(null)
+  const decidedRef = useRef(false)
+
+  // Fetch + decide:
+  //   - no playerId   → free-text BASE sentinel, auto-advance
+  //   - 0 types       → free-text BASE sentinel, auto-advance
+  //   - exactly 1     → pick that type, auto-advance
+  //   - 2+            → render tiles for user selection
+  useEffect(() => {
+    if (decidedRef.current) return
+    let cancelled = false
+
+    if (!playerId) {
+      decidedRef.current = true
+      onPick(FREETEXT_BASE)
+      return
+    }
+
+    setLoading(true)
+    setError(null)
+    fetch(`/api/cards/card-types?setId=${encodeURIComponent(setId)}&playerId=${encodeURIComponent(playerId)}`)
+      .then(r => r.json())
+      .then((d: { types?: CardTypeEntry[]; error?: string }) => {
+        if (cancelled) return
+        if (d.error) throw new Error(d.error)
+        const list = d.types ?? []
+        if (list.length === 0) {
+          decidedRef.current = true
+          onPick(FREETEXT_BASE)
+          return
+        }
+        if (list.length === 1) {
+          decidedRef.current = true
+          onPick(list[0])
+          return
+        }
+        setTypes(list)
+      })
+      .catch(e => { if (!cancelled) setError(e.message ?? 'Failed to load card types') })
+      .finally(() => { if (!cancelled) setLoading(false) })
+
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [setId, playerId])
+
+  // Group by card_type for visual sectioning
+  const groups = useMemo(() => {
+    const m = new Map<string, CardTypeEntry[]>()
+    for (const t of types) {
+      if (!m.has(t.card_type)) m.set(t.card_type, [])
+      m.get(t.card_type)!.push(t)
+    }
+    return Array.from(m.entries())
+  }, [types])
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div>
+        <label className="block text-xs font-medium uppercase tracking-wider text-muted">
+          What type of card is this?
+        </label>
+        <p className="mt-1 text-xs text-muted/70">
+          Base, inserts, autographs and relics each have their own parallel families.
+        </p>
+      </div>
+
+      {loading && <SkeletonRows />}
+
+      {error && (
+        <p className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-400">
+          {error}
+        </p>
+      )}
+
+      {!loading && !error && types.length > 0 && (
+        <div className="flex flex-col gap-4">
+          {groups.map(([ct, entries]) => (
+            <div key={ct} className="flex flex-col gap-2">
+              <p className="text-[11px] font-medium uppercase tracking-wider text-muted/80">
+                {CARD_TYPE_GROUP_LABEL[ct] ?? ct}
+              </p>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                {entries.map(t => {
+                  const isSel = selected
+                    && selected.card_type === t.card_type
+                    && (selected.subset_name ?? null) === (t.subset_name ?? null)
+                    && (selected.card_id ?? null) === (t.card_id ?? null)
+                  return (
+                    <button
+                      key={`${t.card_type}::${t.subset_name ?? ''}::${t.card_id ?? ''}`}
+                      type="button"
+                      onClick={() => onPick(t)}
+                      className={`flex items-center justify-between gap-3 rounded-lg border px-4 py-3 text-left transition-colors ${
+                        isSel
+                          ? 'border-gold bg-gold-muted'
+                          : 'border-border bg-surface hover:border-gold/40 hover:bg-surface-2'
+                      }`}
+                    >
+                      <span className="text-sm font-medium text-white">{t.label}</span>
+                      {t.card_number && (
+                        <span className="shrink-0 rounded bg-border px-1.5 py-0.5 font-mono text-[11px] text-gold">
+                          #{t.card_number}
+                        </span>
+                      )}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Step 7: Parallel + Verifier ─────────────────────────────────────────────
+
+function Step7Parallel({
+  setId, cardId, sportSlug, year, brand, setName, cardNumber, playerName,
   selected, onPick, confirmed, setConfirmed, onConfirmed,
 }: {
   setId:        string
+  cardId:       string | null
   sportSlug:    string
   year:         number
   brand:        string
@@ -888,12 +1060,17 @@ function Step6Parallel({
   const [source, setSource]       = useState<'parallels' | 'templates' | null>(null)
   const [prices, setPrices]       = useState<Record<string, PriceInfo>>({})
 
-  // Always set-driven — parallels by setId, with parallel_templates fallback
+  // Prefer card-scoped parallels when we have a resolved card_id; otherwise
+  // fall back to set-level (which the API will fill from parallel_templates
+  // when no card-level rows exist).
   useEffect(() => {
     let cancelled = false
     setLoading(true)
     setError(null)
-    fetch(`/api/cards/parallels?setId=${encodeURIComponent(setId)}`)
+    const params = cardId
+      ? new URLSearchParams({ cardId })
+      : new URLSearchParams({ setId })
+    fetch(`/api/cards/parallels?${params}`)
       .then(r => r.json())
       .then(d => {
         if (cancelled) return
@@ -904,7 +1081,7 @@ function Step6Parallel({
       .catch(e => { if (!cancelled) setError(e.message ?? 'Failed to load parallels') })
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
-  }, [setId])
+  }, [setId, cardId])
 
   const fetchPrice = useCallback(async (p: Parallel): Promise<PriceInfo | null> => {
     if (!playerName.trim()) return null
@@ -1048,10 +1225,10 @@ function Step6Parallel({
   )
 }
 
-// ─── Step 7: Cost basis ──────────────────────────────────────────────────────
+// ─── Step 8: Cost basis ──────────────────────────────────────────────────────
 
-function Step7CostBasis({
-  sport, year, brand, setSel, cardNumber, playerName, parallel, price,
+function Step8CostBasis({
+  sport, year, brand, setSel, cardNumber, playerName, cardType, parallel, price,
   costBasis, setCostBasis, loading, onAnalyze,
 }: {
   sport:        string
@@ -1060,6 +1237,7 @@ function Step7CostBasis({
   setSel:       SetOption
   cardNumber:   string
   playerName:   string
+  cardType:     CardTypeEntry | null
   parallel:     Parallel
   price:        PriceInfo | null
   costBasis:    number | ''
@@ -1075,6 +1253,8 @@ function Step7CostBasis({
       prefilledRef.current = true
     }
   }, [price, costBasis, setCostBasis])
+
+  const showCardTypeRow = cardType && cardType.card_type !== 'base'
 
   return (
     <div className="flex flex-col gap-4">
@@ -1099,6 +1279,11 @@ function Step7CostBasis({
           <p className="text-sm text-muted">
             {displayYear(year, sport)} · {brand.name} {setSel.name}
           </p>
+          {showCardTypeRow && (
+            <p className="text-sm text-muted">
+              <span className="text-white">{cardType!.label}</span>
+            </p>
+          )}
           <p className="text-sm text-muted">
             {cardNumber ? `#${cardNumber}` : 'No card #'} · {parallel.label}
             {parallel.print_run != null && (
