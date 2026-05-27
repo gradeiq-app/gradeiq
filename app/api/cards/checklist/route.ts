@@ -29,7 +29,6 @@ export async function GET(request: NextRequest) {
     .from('cards')
     .select('id, card_number, name, player:players(id, name)')
     .eq('set_id', setId)
-    .order('card_number', { ascending: true })
 
   if (playerId) query = query.eq('player_id', playerId)
 
@@ -40,8 +39,21 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
+  // Sort by card number with numeric values first, ascending — matches the
+  // PostgreSQL `CASE WHEN card_number ~ '^[0-9]+$' THEN ::integer ELSE 999999 END`
+  // pattern. Lexicographic ordering would put '10' before '2', which is wrong
+  // for card checklists.
+  const cards = (data ?? []).slice().sort((a, b) => {
+    const aNum = a.card_number && /^[0-9]+$/.test(a.card_number) ? parseInt(a.card_number, 10) : null
+    const bNum = b.card_number && /^[0-9]+$/.test(b.card_number) ? parseInt(b.card_number, 10) : null
+    if (aNum !== null && bNum !== null) return aNum - bNum
+    if (aNum !== null) return -1
+    if (bNum !== null) return 1
+    return (a.card_number ?? '').localeCompare(b.card_number ?? '')
+  })
+
   return NextResponse.json(
-    { cards: data ?? [] },
+    { cards },
     { headers: { 'Cache-Control': 'no-store' } },
   )
 }

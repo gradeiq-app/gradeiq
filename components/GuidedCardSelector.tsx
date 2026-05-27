@@ -715,7 +715,12 @@ function Step5CardDetails({
     if (playerName.trim().length < 2) { setPlayerResults([]); return }
     debounceRef.current = setTimeout(async () => {
       try {
-        const r = await fetch(`/api/cards/search?q=${encodeURIComponent(playerName)}&limit=8`)
+        const params = new URLSearchParams({
+          q:     playerName,
+          setId,
+          limit: '8',
+        })
+        const r = await fetch(`/api/cards/search?${params}`)
         const d = await r.json()
         setPlayerResults(d.players ?? [])
       } catch {
@@ -723,7 +728,7 @@ function Step5CardDetails({
       }
     }, 300)
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current) }
-  }, [playerName])
+  }, [playerName, setId])
 
   const filteredCards = useMemo(() => {
     const f = filter.trim().toLowerCase()

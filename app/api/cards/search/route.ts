@@ -1,6 +1,6 @@
 /**
  * GET /api/cards/search?q=
- * Player autocomplete for the guided card selector (Step 1).
+ * Player autocomplete for the guided card selector.
  *
  * Uses the players.search_vector tsvector (full-text) combined with an ILIKE
  * trigram fallback so short partial queries ("Maho") still match.
@@ -8,6 +8,10 @@
  * Query params:
  *   q      — search query (min 2 chars)
  *   sport  — optional sport slug filter
+ *   setId  — optional set UUID; when present, restricts results to players
+ *            who have at least one card in that set. Used by Step 5 of the
+ *            guided card selector so autocomplete only suggests players
+ *            actually in the chosen checklist. Omit for all-players search.
  *   limit  — max results (default 12, max 25)
  */
 import { NextRequest, NextResponse } from 'next/server'
@@ -17,6 +21,9 @@ export const dynamic = 'force-dynamic'
 
 const DEFAULT_LIMIT = 12
 const MAX_LIMIT     = 25
+
+const BASE_COLS    = 'id, name, position, sport:sports(id, name, slug)'
+const SET_COLS     = `${BASE_COLS}, cards!inner(set_id)`
 
 export async function GET(request: NextRequest) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -28,6 +35,7 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const q     = (searchParams.get('q') ?? '').trim()
   const sport = searchParams.get('sport')
+  const setId = searchParams.get('setId') ?? searchParams.get('set_id')
   const limit = Math.min(
     parseInt(searchParams.get('limit') ?? String(DEFAULT_LIMIT)) || DEFAULT_LIMIT,
     MAX_LIMIT,
@@ -48,33 +56,33 @@ export async function GET(request: NextRequest) {
     .map(t => `${t}:*`)
     .join(' & ')
 
-  let query = supabase
-    .from('players')
-    .select('id, name, position, sport:sports(id, name, slug)')
-    .order('name')
-    .limit(limit)
+  // Inner-joining via `cards!inner(set_id)` scopes results to players who
+  // have at least one card in the set. PostgREST returns each player once
+  // with cards as a nested array — we strip it before responding.
+  const baseQuery = () => {
+    let q2 = supabase
+      .from('players')
+      .select(setId ? SET_COLS : BASE_COLS)
+      .order('name')
+      .limit(limit)
+    if (setId) q2 = q2.eq('cards.set_id', setId)
+    if (sport) q2 = q2.eq('sports.slug', sport)
+    return q2
+  }
 
+  let query = baseQuery()
   if (tsQuery) {
     query = query.textSearch('search_vector', tsQuery, { config: 'english' })
   } else {
     query = query.ilike('name', `%${q}%`)
   }
 
-  if (sport) query = query.eq('sports.slug', sport)
-
   let { data, error } = await query
 
   // Fallback: tsvector match returned nothing — try ILIKE for autocomplete-style
   // partial matches ("Tro" → "Trout") that don't survive prefix tsquery.
   if (!error && (!data || data.length === 0)) {
-    let fallback = supabase
-      .from('players')
-      .select('id, name, position, sport:sports(id, name, slug)')
-      .ilike('name', `%${q}%`)
-      .order('name')
-      .limit(limit)
-    if (sport) fallback = fallback.eq('sports.slug', sport)
-    const r = await fallback
+    const r = await baseQuery().ilike('name', `%${q}%`)
     data  = r.data
     error = r.error
   }
@@ -84,8 +92,14 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
+  // Strip the `cards` join field — clients only need player fields.
+  const players = (data ?? []).map((row: any) => {
+    const { cards: _cards, ...rest } = row
+    return rest
+  })
+
   return NextResponse.json(
-    { players: data ?? [] },
+    { players },
     { headers: { 'Cache-Control': 'no-store' } },
   )
 }
