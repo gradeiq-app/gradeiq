@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
-import CardLookupForm from './CardLookupForm'
+import GuidedCardSelector from './GuidedCardSelector'
 import ResultsTable from './ResultsTable'
 import UpgradeModal from './UpgradeModal'
 import { analyzeCard } from '@/lib/calculations'
@@ -271,7 +271,7 @@ export default function AnalyzePage({ user }: Props) {
               </div>
 
               <div className="card">
-                <CardLookupForm onSubmit={handleAnalyze} loading={loading} />
+                <GuidedCardSelector onSubmit={handleAnalyze} loading={loading} />
               </div>
             </div>
 
