@@ -4,6 +4,8 @@
  *
  * Sport mode drives the guided selector (works from the well-populated sets
  * table). Player mode is kept for the deeper player-first variant of the flow.
+ *
+ * Response: { years: number[] } sorted descending.
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
