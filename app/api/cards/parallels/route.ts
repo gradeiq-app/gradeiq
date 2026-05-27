@@ -131,43 +131,79 @@ export async function GET(request: NextRequest) {
   }
 
   // ── Set mode (setId only) ───────────────────────────────────────────────
-  // Step 1: distinct parallels via cards in this set
-  const { data: joined, error: joinErr } = await supabase
-    .from('parallels')
-    .select(`
-      id, label, ebay_kw, print_run, reference_image_url, visual_identifiers, surface_description,
-      card:cards!inner(set_id)
-    `)
-    .eq('cards.set_id', setId!)
+  // Two-step query avoids the fragile PostgREST embedded-resource filter
+  // (.eq('cards.set_id', x) can silently return zero rows).
+  //
+  // Step A: get all card ids in the set
+  const { data: cardRows, error: cardsErr } = await supabase
+    .from('cards')
+    .select('id')
+    .eq('set_id', setId!)
+    .limit(5000)
 
-  if (joinErr) {
-    console.error('[cards/parallels] set mode join error', joinErr.message)
-    return NextResponse.json({ error: joinErr.message }, { status: 500 })
+  if (cardsErr) {
+    console.error('[cards/parallels] set mode cards lookup error', cardsErr.message)
+    return NextResponse.json({ error: cardsErr.message }, { status: 500 })
   }
 
-  let parallels: ParallelOut[] = (joined ?? []).map(r => ({
-    id:                  r.id as string,
-    label:               r.label as string,
-    ebay_kw:             (r.ebay_kw as string) ?? '',
-    print_run:           (r.print_run as number | null) ?? parsePrintRun(r.label as string),
-    reference_image_url: (r.reference_image_url as string | null) ?? null,
-    visual_identifiers:  (r.visual_identifiers as string[] | null) ?? null,
-    surface_description: (r.surface_description as string | null) ?? null,
-    is_base:             /^base\b/i.test(r.label as string),
-  }))
+  const cardIds = (cardRows ?? []).map(c => c.id as string)
+  let parallels: ParallelOut[] = []
+
+  // Step B: get parallels for those cards (chunk if needed — PostgREST URL limit)
+  if (cardIds.length > 0) {
+    const CHUNK = 100
+    for (let i = 0; i < cardIds.length; i += CHUNK) {
+      const slice = cardIds.slice(i, i + CHUNK)
+      const { data: rows, error: pErr } = await supabase
+        .from('parallels')
+        .select('id, label, ebay_kw, print_run, reference_image_url, visual_identifiers, surface_description')
+        .in('card_id', slice)
+        .limit(10000)
+
+      if (pErr) {
+        console.error('[cards/parallels] set mode parallels lookup error', pErr.message)
+        return NextResponse.json({ error: pErr.message }, { status: 500 })
+      }
+
+      for (const r of rows ?? []) {
+        parallels.push({
+          id:                  r.id as string,
+          label:               r.label as string,
+          ebay_kw:             (r.ebay_kw as string) ?? '',
+          print_run:           (r.print_run as number | null) ?? parsePrintRun(r.label as string),
+          reference_image_url: (r.reference_image_url as string | null) ?? null,
+          visual_identifiers:  (r.visual_identifiers as string[] | null) ?? null,
+          surface_description: (r.surface_description as string | null) ?? null,
+          is_base:             /^base\b/i.test(r.label as string),
+        })
+      }
+    }
+  }
 
   let source: 'parallels' | 'templates' = 'parallels'
 
-  // Step 2: fall back to set.parallel_templates if nothing came back
+  // Step C: fall back to set.parallel_templates if nothing came back
   if (parallels.length === 0) {
     parallels = await loadFromTemplates(url, key, setId!)
     source = 'templates'
   }
 
-  parallels = ensureBase(dedupeByLabel(parallels))
+  const rawCount  = parallels.length
+  const finalList = sortParallels(ensureBase(dedupeByLabel(parallels)))
+
+  console.log(
+    `[cards/parallels] setId=${setId} cards=${cardIds.length} ` +
+    `raw_parallels=${rawCount} distinct=${finalList.length} source=${source}`,
+  )
 
   return NextResponse.json(
-    { parallels: sortParallels(parallels), set_id: setId, source },
+    {
+      parallels: finalList,
+      set_id:    setId,
+      source,
+      count:     finalList.length,
+      card_count: cardIds.length,
+    },
     { headers: { 'Cache-Control': 'no-store' } },
   )
 }

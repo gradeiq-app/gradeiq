@@ -888,10 +888,19 @@ function Step6Parallel({
     let cancelled = false
     setLoading(true)
     setError(null)
-    fetch(`/api/cards/parallels?setId=${encodeURIComponent(setId)}`)
+    const url = `/api/cards/parallels?setId=${encodeURIComponent(setId)}`
+    console.log('[Step6Parallel] fetching', url)
+    fetch(url)
       .then(r => r.json())
       .then(d => {
         if (cancelled) return
+        console.log('[Step6Parallel] response', {
+          count:    d.count,
+          source:   d.source,
+          received: (d.parallels ?? []).length,
+          first3:   (d.parallels ?? []).slice(0, 3).map((p: { label: string }) => p.label),
+          error:    d.error,
+        })
         if (d.error) throw new Error(d.error)
         setParallels(d.parallels ?? [])
         setSource(d.source ?? null)
