@@ -211,7 +211,11 @@ export default function GuidedCardSelector({ onSubmit, loading }: Props) {
   const resolvedCardNumber = cardType?.card_number ?? ''
 
   function handleAnalyze() {
-    if (!sport || year == null || !brand || !setSel || !parallel || !verifierConfirmed) return
+    // Player name is the only hard requirement at submit time — the upstream
+    // step gates already enforce sport/year/brand/set/parallel before we
+    // arrive at Step 8. Cost basis defaults to 0 when blank so the user can
+    // submit without typing one in.
+    if (!sport || year == null || !brand || !setSel || !parallel) return
     if (!playerName.trim()) return
     onSubmit({
       playerName: playerName.trim(),
@@ -1360,21 +1364,25 @@ function Step8CostBasis({
         </p>
       </div>
 
-      <div>
+      <div className="mt-2 flex flex-col gap-2 border-t border-gold/20 pt-4 sm:flex-row sm:items-center sm:justify-end">
+        {!playerName.trim() && (
+          <p className="text-xs text-amber-400/80">
+            Player name required to analyze.
+          </p>
+        )}
         <button
           type="button"
           onClick={onAnalyze}
-          disabled={loading || costBasis === '' || costBasis < 0 || !playerName.trim()}
-          className="btn-gold px-8 py-3"
+          disabled={loading || (typeof costBasis === 'number' && costBasis < 0) || !playerName.trim()}
+          className="btn-gold w-full px-10 py-4 text-base font-bold shadow-lg shadow-gold/20 ring-2 ring-gold/40 transition-transform hover:scale-[1.02] disabled:hover:scale-100 sm:w-auto"
+          aria-label="Analyze card"
         >
           {loading ? (
-            <span className="flex items-center gap-2"><Spinner /> Analyzing…</span>
+            <span className="flex items-center justify-center gap-2"><Spinner /> Analyzing…</span>
           ) : (
-            <span className="flex items-center gap-2">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" />
-              </svg>
-              Run Analysis
+            <span className="flex items-center justify-center gap-2">
+              <span>Analyze</span>
+              <span aria-hidden className="text-lg leading-none">→</span>
             </span>
           )}
         </button>
