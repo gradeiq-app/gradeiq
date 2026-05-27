@@ -947,8 +947,25 @@ function Step6Parallel({
     return () => { cancelled = true }
   }, [parallels, fetchPrice, playerName])
 
+  // Render-time diagnostic — fires on every render so we can see how the
+  // parallels/loading/error state evolves between fetch resolution and paint.
+  console.log('[Step6Parallel render]', {
+    parallelsLength: parallels.length,
+    loading,
+    error,
+    source,
+    hasSelected:     !!selected,
+    firstParallel:   parallels[0],
+    setId,
+  })
+
   return (
     <div className="flex flex-col gap-4">
+      {/* Diagnostic banner — always renders so we can confirm the component
+          mounted and reached the return. Remove once empty-tile bug is fixed. */}
+      <div className="rounded border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-200">
+        debug: loading={String(loading)} parallels={parallels.length} source={source ?? 'null'} error={error ?? 'none'}
+      </div>
       <div>
         <label className="block text-xs font-medium uppercase tracking-wider text-muted">
           Pick your parallel
