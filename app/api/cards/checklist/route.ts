@@ -16,10 +16,11 @@ export async function GET(request: NextRequest) {
   }
 
   const { searchParams } = new URL(request.url)
-  const setId    = searchParams.get('setId')
-  const playerId = searchParams.get('playerId')
+  // Accept both camelCase and snake_case so callers can use either convention.
+  const setId    = searchParams.get('setId')    ?? searchParams.get('set_id')
+  const playerId = searchParams.get('playerId') ?? searchParams.get('player_id')
   if (!setId) {
-    return NextResponse.json({ error: 'setId required' }, { status: 400 })
+    return NextResponse.json({ error: 'setId/set_id required' }, { status: 400 })
   }
 
   const supabase = createClient(url, key)

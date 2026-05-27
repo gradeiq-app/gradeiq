@@ -77,11 +77,17 @@ export async function GET(request: NextRequest) {
   }
 
   const { searchParams } = new URL(request.url)
-  const cardId = searchParams.get('cardId')
-  const setId  = searchParams.get('setId')
+  // Accept both camelCase and snake_case so URLs match either the guided
+  // selector convention (cardId/setId) or the /api/catalog/* convention
+  // (card_id/set_id) without confusing callers.
+  const cardId = searchParams.get('cardId') ?? searchParams.get('card_id')
+  const setId  = searchParams.get('setId')  ?? searchParams.get('set_id')
 
   if (!cardId && !setId) {
-    return NextResponse.json({ error: 'cardId or setId required' }, { status: 400 })
+    return NextResponse.json(
+      { error: 'cardId/card_id or setId/set_id required' },
+      { status: 400 },
+    )
   }
 
   const supabase = createClient(url, key)
