@@ -57,9 +57,9 @@ function GradeCard({ grade }: { grade: GradeAnalysis }) {
   const noData = grade.avgSalePrice === 0
 
   return (
-    <div className="rounded-xl border border-border bg-surface overflow-hidden animate-slide-up">
+    <div className="rounded-xl border border-border-2 bg-surface overflow-hidden animate-slide-up">
       {/* Grade header */}
-      <div className="flex items-center justify-between border-b border-border px-5 py-3.5">
+      <div className="flex items-center justify-between border-b border-border-2 px-5 py-3.5">
         <div className="flex items-center gap-3">
           <span className="font-heading text-lg text-gold">{grade.label}</span>
           {noData ? (
@@ -80,11 +80,11 @@ function GradeCard({ grade }: { grade: GradeAnalysis }) {
       </div>
 
       {/* Tier grid */}
-      <div className="grid grid-cols-2 divide-x divide-border lg:grid-cols-4">
+      <div className="grid grid-cols-2 divide-x divide-border-2 lg:grid-cols-4">
         {grade.tiers.map((tier, i) => (
           <div key={tier.id}>
             {/* Tier label */}
-            <div className="border-b border-border bg-surface-2 px-3 py-1.5 text-center">
+            <div className="border-b border-border-2 bg-surface-2 px-3 py-1.5 text-center">
               <p className="text-xs font-semibold text-white">{tier.name}</p>
               <p className="text-xs text-muted">${tier.fee}</p>
             </div>

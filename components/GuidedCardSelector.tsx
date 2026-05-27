@@ -1387,7 +1387,11 @@ function Step8CostBasis({
           />
         </div>
         <p className="mt-1 text-xs text-muted">
-          What you paid for the raw card{price?.cached && price.raw_avg && price.raw_avg > 0 ? ' — pre-filled from cached market avg' : ''}.
+          {price?.cached && price.raw_avg && price.raw_avg > 0
+            ? 'What you paid for the raw card — pre-filled from cached market avg.'
+            : price?.cached
+              ? 'No raw sales data — enter your cost.'
+              : 'No market data available yet — enter your cost.'}
         </p>
       </div>
 
