@@ -1,11 +1,17 @@
 /**
  * seed-inserts.mjs
  * Inserts missing insert sets + WNBA sets into card_sets.
- * Run:  node scripts/seed-inserts.mjs
+ * Run:  node --env-file=.env.local scripts/seed-inserts.mjs
  */
 
+if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+  console.error("Missing required env: SUPABASE_SERVICE_ROLE_KEY");
+  console.error("Set in .env.local (loaded via `node --env-file=.env.local`) or shell environment.");
+  process.exit(1);
+}
+
 const SUPABASE_URL  = 'https://dcsrpdmhmcboydjsbgsg.supabase.co'
-const SERVICE_KEY   = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRjc3JwZG1obWNib3lkanNiZ3NnIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3OTM5OTAwNywiZXhwIjoyMDk0OTc1MDA3fQ.QAF6sQadaM15KWMrfE6fHKGFIvvy83zPJONyZDPiJCA'
+const SERVICE_KEY   = process.env.SUPABASE_SERVICE_ROLE_KEY
 
 // ─── Parallel templates ───────────────────────────────────────────────────────
 
