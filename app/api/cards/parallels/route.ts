@@ -31,14 +31,48 @@ function parsePrintRun(label: string): number | null {
   return m ? parseInt(m[1]) : null
 }
 
+/**
+ * Canonical "first chase" parallels that should sit right after Base —
+ * the unnumbered premium variant that defines each product family.
+ * Match is case-insensitive and exact on the trimmed label.
+ */
+const PROMOTED_LABELS = new Set([
+  'silver prizm',
+  'silver',
+  'refractor',
+  'holo',
+  'rainbow foil',
+  'prism refractor',
+  'chrome',
+])
+
+function isPromoted(p: ParallelOut): boolean {
+  return PROMOTED_LABELS.has(p.label.toLowerCase().trim())
+}
+
 function sortParallels(arr: ParallelOut[]): ParallelOut[] {
   return [...arr].sort((a, b) => {
+    // 1. Base first
     if (a.is_base && !b.is_base) return -1
     if (!a.is_base && b.is_base) return 1
     if (a.is_base && b.is_base)  return 0
+
+    // 2. Canonical premium parallels (Silver Prizm, Refractor, Holo, etc.)
+    //    surface right after Base regardless of print run
+    const aP = isPromoted(a)
+    const bP = isPromoted(b)
+    if (aP && !bP) return -1
+    if (!aP && bP) return 1
+    if (aP && bP)  return a.label.localeCompare(b.label)
+
+    // 3. Unnumbered before numbered (rarity ascending into the numbered group)
     if (a.print_run == null && b.print_run != null) return -1
     if (a.print_run != null && b.print_run == null) return 1
+
+    // 4. Within unnumbered: alphabetical
     if (a.print_run == null && b.print_run == null) return a.label.localeCompare(b.label)
+
+    // 5. Within numbered: largest print run first (most common to rarest)
     return (b.print_run ?? 0) - (a.print_run ?? 0)
   })
 }
