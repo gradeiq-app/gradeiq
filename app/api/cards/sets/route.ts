@@ -59,6 +59,7 @@ export async function GET(request: NextRequest) {
       `)
       .eq('sports.slug', sport)
       .eq('year', year)
+      .eq('is_active', true)
       .order('name')
       .limit(1000)
 
@@ -110,6 +111,7 @@ export async function GET(request: NextRequest) {
     `)
     .eq('player_id', playerId)
     .eq('sets.year', year)
+    .eq('sets.is_active', true)
 
   if (error) {
     console.error('[cards/sets] player mode error', error.message)
