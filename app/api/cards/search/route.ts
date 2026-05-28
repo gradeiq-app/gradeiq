@@ -63,6 +63,13 @@ export async function GET(request: NextRequest) {
     let q2 = supabase
       .from('players')
       .select(setId ? SET_COLS : BASE_COLS)
+      // Exclude combo / triple-duplicate / contamination rows from autocomplete.
+      // 2,630 rows whose name contains '/' — verified zero legitimate single
+      // players are in this population; all cards remain reachable via the
+      // canonical player records. Applied here in baseQuery() so it covers
+      // all three return paths (primary tsvector, primary ilike, fallback ilike).
+      // See project_triple_duplicate_rows.md.
+      .not('name', 'like', '%/%')
       .order('name')
       .limit(limit)
     if (setId) q2 = q2.eq('cards.set_id', setId)
