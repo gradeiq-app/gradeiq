@@ -1,5 +1,5 @@
 # VERCEL_TOKEN: source from Vercel dashboard → Settings → Tokens
-import os, pathlib, secrets, sys
+import os, pathlib, sys
 import requests
 
 
@@ -30,6 +30,7 @@ NEXT_PUBLIC_SUPABASE_URL = os.environ.get("NEXT_PUBLIC_SUPABASE_URL")
 NEXT_PUBLIC_SUPABASE_ANON_KEY = os.environ.get("NEXT_PUBLIC_SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 EBAY_VERIFICATION_TOKEN = os.environ.get("EBAY_VERIFICATION_TOKEN")
+CRON_SECRET = os.environ.get("CRON_SECRET")
 missing = [k for k, v in (
     ("VERCEL_TOKEN", VERCEL_TOKEN),
     ("VERCEL_PROJECT_ID", PROJECT_ID),
@@ -38,6 +39,7 @@ missing = [k for k, v in (
     ("NEXT_PUBLIC_SUPABASE_ANON_KEY", NEXT_PUBLIC_SUPABASE_ANON_KEY),
     ("SUPABASE_SERVICE_ROLE_KEY", SUPABASE_SERVICE_ROLE_KEY),
     ("EBAY_VERIFICATION_TOKEN", EBAY_VERIFICATION_TOKEN),
+    ("CRON_SECRET", CRON_SECRET),
 ) if not v]
 if missing:
     sys.exit(
@@ -62,9 +64,6 @@ existing_keys = {e["key"] for e in existing.get("envs", [])}
 print(f"  Existing keys: {sorted(existing_keys)}")
 
 # ── 2. Env vars to ensure exist ────────────────────────────────────────────────
-CRON_SECRET = secrets.token_hex(32)
-print(f"\n  Generated CRON_SECRET = {CRON_SECRET}")
-
 TARGET_ENVS = {
     "NEXT_PUBLIC_SUPABASE_URL":      NEXT_PUBLIC_SUPABASE_URL,
     "NEXT_PUBLIC_SUPABASE_ANON_KEY": NEXT_PUBLIC_SUPABASE_ANON_KEY,
@@ -95,16 +94,4 @@ for key, value in TARGET_ENVS.items():
     if r.status_code not in (200, 201):
         print(f"    ERROR: {r.text[:300]}")
 
-# ── 4. Write CRON_SECRET to local .env.local too ───────────────────────────────
-env_path = pathlib.Path(__file__).resolve().parent.parent / ".env.local"
-content = env_path.read_text(encoding="utf-8")
-
-if "CRON_SECRET=" not in content:
-    with env_path.open("a", encoding="utf-8") as f:
-        f.write(f"\nCRON_SECRET={CRON_SECRET}\n")
-    print(f"\n  Written CRON_SECRET to .env.local")
-else:
-    print(f"\n  CRON_SECRET already in .env.local")
-
-print(f"\n  CRON_SECRET = {CRON_SECRET}")
 print("\n=== Done ===")
