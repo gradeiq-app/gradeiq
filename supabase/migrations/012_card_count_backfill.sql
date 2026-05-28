@@ -25,6 +25,7 @@
 BEGIN;
 
 SET LOCAL statement_timeout = '30min';
+SET LOCAL lock_timeout = '4s';
 
 WITH actual AS (
   SELECT s.id AS set_id, COALESCE(COUNT(c.id), 0)::int AS n
