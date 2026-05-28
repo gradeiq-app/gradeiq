@@ -42,10 +42,11 @@ export async function GET(request: NextRequest) {
       manufacturer:manufacturers!inner(id, name, slug),
       sport:sports!inner(slug),
       year,
-      cards(count)
+      card_count
     `)
     .eq('sports.slug', sport)
     .eq('year', year)
+    .eq('is_active', true)
     .limit(5000)
 
   if (error) {
@@ -55,7 +56,7 @@ export async function GET(request: NextRequest) {
 
   const map = new Map<string, Brand>()
   for (const row of data ?? []) {
-    const count = (row.cards as Array<{ count: number }> | null)?.[0]?.count ?? 0
+    const count = (row.card_count as number | null) ?? 0
     if (isContaminatedCardCount(sport, count)) continue
     const m = row.manufacturer as unknown as Brand | null
     if (m?.id && !map.has(m.id)) map.set(m.id, m)
