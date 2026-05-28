@@ -13,6 +13,7 @@
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { isContaminatedCardCount } from '@/lib/contaminated-signatures'
 
 export const dynamic = 'force-dynamic'
 
@@ -21,7 +22,7 @@ interface SetOut {
   year:         number
   name:         string
   manufacturer: { id: string; name: string; slug: string } | null
-  card_count:   number   // 0 when sport mode (we don't query cards)
+  card_count:   number
 }
 
 export async function GET(request: NextRequest) {
@@ -52,7 +53,7 @@ export async function GET(request: NextRequest) {
     let query = supabase
       .from('sets')
       .select(`
-        id, year, name,
+        id, year, name, card_count,
         sport:sports!inner(slug),
         manufacturer:manufacturers!inner(id, name, slug)
       `)
@@ -72,12 +73,14 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
-    const sets: SetOut[] = (data ?? []).map(r => ({
+    const sets: SetOut[] = (data ?? [])
+      .filter(r => !isContaminatedCardCount(sport, (r.card_count as number | null) ?? 0))
+      .map(r => ({
       id:           r.id as string,
       year:         r.year as number,
       name:         r.name as string,
       manufacturer: (r.manufacturer as unknown as SetOut['manufacturer']) ?? null,
-      card_count:   0,
+      card_count:   (r.card_count as number | null) ?? 0,
     })).sort((a, b) => {
       const ma = a.manufacturer?.name ?? ''
       const mb = b.manufacturer?.name ?? ''
