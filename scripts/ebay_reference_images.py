@@ -100,6 +100,51 @@ _BLACKLIST_RE = re.compile(
     re.IGNORECASE,
 )
 
+# ── parallel-family disambiguator (Phase 2) ─────────────────────────────────
+# Ported from scripts/lib/beckett_sanitizers.ts PARALLEL_FAMILY_DENYLIST,
+# with eBay-specific additions. 'chrome' INTENTIONALLY OMITTED because
+# every 2024 Topps Chrome listing has "Chrome" in its title — including
+# it would empty every pool and force fallback on all 14 cards.
+PARALLEL_KEYWORDS = [
+    # Beckett parallel families
+    "prizm", "prizms", "refractor", "refractors", "mosaic", "mosaics",
+    "optic", "select", "sapphire", "cosmic", "sonar", "wave", "geometric",
+    "speckle", "silver", "gold", "holo", "rainbow", "negative", "disco",
+    # Topps Chrome color parallels (eBay listing convention)
+    "pink", "blue", "orange", "purple", "red", "green", "yellow",
+    "teal", "aqua",
+    # Special-effect parallels
+    "shimmer", "mojo", "scope", "hyper", "lazer", "kaleidoscope", "sepia",
+    # X-Fractor / Atomic Fractor / similar refractor variants. "fractor"
+    # with \b matches "X-Fractor" (boundary at the hyphen) but NOT
+    # "refractor" (no boundary mid-word) — so it's additive to the
+    # existing refractor entries.
+    "fractor",
+    # Multi-word parallel families
+    "stained glass",
+]
+_PARALLEL_RE = re.compile(
+    r"\b(" + "|".join(re.escape(w) for w in PARALLEL_KEYWORDS) + r")\b",
+    re.IGNORECASE,
+)
+# Print-run / serial-number markers ("/99", "/199", "1/1", etc.).
+# Word-boundary doesn't help here because '/' isn't a word char; match
+# explicit shapes instead.
+_PRINT_RUN_RE = re.compile(r"/\d{1,4}\b|\b1/1\b", re.IGNORECASE)
+
+
+def is_base_listing(title: str) -> bool:
+    """Return True if title contains no parallel-family keyword and no
+    print-run marker. Applied AFTER is_raw_listing() to prefer base over
+    parallel listings. Fallback to raw pool is handled by the caller."""
+    if not title:
+        return False
+    if _PARALLEL_RE.search(title):
+        return False
+    if _PRINT_RUN_RE.search(title):
+        return False
+    return True
+
 # ── target cards (card_ids from PSA Phase 1 base matches) ────────────────────
 # Card numbers are loaded at startup from the PSA journal (load_psa_card_numbers)
 # rather than hardcoded here, because rawiq's cards.card_number is NULL for
@@ -196,22 +241,30 @@ def listing_price_usd(it: dict) -> tuple[Optional[float], Optional[str]]:
         val = None
     return val, p.get("currency")
 
-def filter_listings(items: list[dict]) -> tuple[list[dict], dict]:
-    """Apply (1) price cap, then (2) graded/auto keyword blacklist.
+def filter_listings(items: list[dict]) -> tuple[list[dict], list[dict], dict]:
+    """Apply (1) price cap, (2) graded/auto keyword blacklist, then split
+    the 'raw' survivors into a 'base' pool by removing listings whose
+    titles contain parallel-family keywords or print-run markers.
+
     Price runs first because it's cheaper and catches a lot of slabs +
     autos without keyword detection (slabs at $200+, autos at $300+).
 
-    Returns (kept_listings, stats) where stats tracks how many were
-    eliminated by each filter — useful for spot-checking the
-    MAX_RAW_PRICE_USD threshold.
+    Returns (raw_listings, base_listings, stats):
+      - raw_listings:  passed price + graded filters (Phase 1 output)
+      - base_listings: subset of raw that also passes is_base_listing()
+      - stats: per-filter counts including parallel_rejected, kept_raw,
+               and kept_base — useful for spot-checking the threshold and
+               the parallel disambiguator.
     """
     stats = {
         "returned": len(items),
         "rejected_price": 0,
         "rejected_graded": 0,
-        "kept": 0,
+        "rejected_parallel": 0,
+        "kept_raw": 0,
+        "kept_base": 0,
     }
-    kept: list[dict] = []
+    raw: list[dict] = []
     for it in items:
         val, currency = listing_price_usd(it)
         # Only enforce on USD. Non-USD (rare on EBAY_US marketplace) passes.
@@ -221,9 +274,12 @@ def filter_listings(items: list[dict]) -> tuple[list[dict], dict]:
         if not is_raw_listing(it.get("title", "")):
             stats["rejected_graded"] += 1
             continue
-        kept.append(it)
-    stats["kept"] = len(kept)
-    return kept, stats
+        raw.append(it)
+    stats["kept_raw"] = len(raw)
+    base = [it for it in raw if is_base_listing(it.get("title", ""))]
+    stats["rejected_parallel"] = len(raw) - len(base)
+    stats["kept_base"] = len(base)
+    return raw, base, stats
 
 def is_raw_listing(title: str) -> bool:
     """Return True if a listing title looks like a raw (ungraded, non-auto)
@@ -409,6 +465,24 @@ def append_jsonl(path: pathlib.Path, obj: dict) -> None:
     with open(path, "a", encoding="utf-8") as f:
         f.write(json.dumps(obj, ensure_ascii=False) + "\n")
 
+def log_parallel_fallback(card_id: str, player_name: str, query: str,
+                          stats: dict, fallback_listing_id: Optional[str],
+                          fallback_title: str) -> None:
+    """Append a JSONL line when the parallel filter empties the pool and
+    the caller falls back to the raw pool (Phase 1 behavior). Helps audit
+    which cards have no raw base listings available on eBay."""
+    append_jsonl(SCRIPTS_DIR / "_ebay_parallel_fallback.jsonl", {
+        "card_id": card_id,
+        "player_name": player_name,
+        "query": query,
+        "listings_after_price_filter": stats["returned"] - stats["rejected_price"],
+        "listings_after_raw_filter": stats["kept_raw"],
+        "listings_after_parallel_filter": stats["kept_base"],
+        "fallback_listing_id": fallback_listing_id,
+        "fallback_title": fallback_title,
+        "ts": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+    })
+
 # ── main ────────────────────────────────────────────────────────────────────
 def main():
     ap = argparse.ArgumentParser()
@@ -480,14 +554,25 @@ def main():
             continue
 
         listings_returned_total += len(items)
-        raw_items, filter_stats = filter_listings(items)
+        raw_items, base_items, filter_stats = filter_listings(items)
         listings_after_filter_total += len(raw_items)
         log(f"  filter: returned={filter_stats['returned']} "
             f"rejected_price={filter_stats['rejected_price']} "
             f"rejected_graded={filter_stats['rejected_graded']} "
-            f"kept={filter_stats['kept']}")
+            f"rejected_parallel={filter_stats['rejected_parallel']} "
+            f"kept_raw={filter_stats['kept_raw']} "
+            f"kept_base={filter_stats['kept_base']}")
 
-        chosen, pick_stats = pick_best_listing(raw_items)
+        # Phase 2: prefer base pool; fall back to raw pool when filter
+        # empties base. Fallback events logged separately for audit.
+        pool = base_items if base_items else raw_items
+        fallback_used = (not base_items) and bool(raw_items)
+        chosen, pick_stats = pick_best_listing(pool)
+        if fallback_used and chosen:
+            log(f"  ! parallel filter emptied base pool — falling back to raw")
+            log_parallel_fallback(card['card_id'], card['player'], query,
+                                  filter_stats, chosen.get('itemId'),
+                                  chosen.get('title', ''))
         log(f"  pick:   {pick_stats}")
 
         if not chosen:
@@ -522,6 +607,8 @@ def main():
             "query": query,
             "listings_returned": len(items),
             "listings_after_filter": len(raw_items),
+            "listings_after_parallel_filter": len(base_items),
+            "fallback_used": fallback_used,
             "filter_stats": filter_stats,
             "selected_listing_id": item_id,
             "selected_title": title,

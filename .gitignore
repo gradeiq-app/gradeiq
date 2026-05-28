@@ -43,6 +43,7 @@ scripts/_probe/
 scripts/__pycache__/
 scripts/lib/__pycache__/
 scripts/_beckett_sanitizer_log.jsonl
+scripts/_ebay_parallel_fallback.jsonl
 scripts/beckett-progress.json
 scripts/tcdb-progress.json
 scripts/_beckett-failures.json
